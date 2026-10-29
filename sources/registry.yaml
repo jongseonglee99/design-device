@@ -1,0 +1,457 @@
+# 신뢰 소스 레지스트리
+#
+# 원칙: 소스에서 가져오는 것은 **결정(decision)** 이지 **결과(artifact)** 가 아니다.
+#   "이 히어로가 멋있다"        → 결과. 베끼는 것 말고 할 게 없다.
+#   "제목을 본문의 4.2배로 키우는 대신 굵기 대비를 포기했다" → 결정. 어떤 장르에든 이식된다.
+# 결정은 반드시 트레이드오프 쌍으로 기록한다 (taxonomy.md L8).
+#
+# takes/drops 는 taxonomy.md 의 레이어 코드(L0~L9)다.
+# anti-patterns.md 의 코드(C/T/G/S/M/IA/I)와는 다른 체계이므로 섞어 쓰지 말 것.
+# drops 는 절대 금지가 아니라 **해당 소스로부터는 신뢰하지 않는다**는 뜻이다.
+# 모드에 따라 열리는 레이어는 takes_for_mode 에 따로 적는다.
+
+version: 1
+updated: 2026-08-17
+
+sources:
+  - id: awwwards
+    url: https://www.awwwards.com/
+    kind: rendered          # 실제 브라우저에서 돌아가는 코드 → computed style 측정 가능
+    auth: none
+    round: weekly           # 클라우드 스케줄
+    takes: [L5, L2, L1]     # 모션(커브·듀레이션·트리거), 타이포, 여백 리듬
+    drops: [L6]             # IA·구조는 마케팅 사이트의 것
+    takes_for_mode:
+      marketing: [L6, L7]   # marketing 모드에서는 IA·스크롤 시퀀스가 유효 참조가 된다
+    note: 표현적·실험적 편향. tool 모드 작업에 L6를 끌어오면 불변항과 충돌한다.
+
+  - id: siteinspire
+    url: https://www.siteinspire.com/
+    kind: rendered
+    auth: none
+    round: weekly
+    takes: [L1, L2, L7]     # 그리드·여백, 타이포 대비 전략, 절제된 톤
+    drops: [L6]
+    takes_for_mode:
+      marketing: [L6]
+    note: 큐레이션이 미니멀·에디토리얼 편향 → 절제된 자세와 궁합이 좋다.
+
+  - id: gdweb
+    url: https://www.gdweb.co.kr/main/
+    kind: rendered
+    auth: none
+    round: weekly
+    takes: [L0, L2, L6, L7] # 한국 시장 관습, 한글 UI 라벨링, 모바일 웹 패턴
+    drops: []
+    note: |
+      유일한 한국 웹 소스. 대체 불가.
+      L6를 받는 이유는 한국 기업 사이트의 IA 관행 자체가 관측 대상이기 때문.
+      표현적 장식은 걸러서 본다.
+
+  - id: dribbble
+    url: https://dribbble.com/
+    kind: shot              # 렌더가 아니라 그림
+    auth: login             # 사용자가 직접 로그인 제공
+    round: monthly          # 로컬 실행 (클라우드는 로그인 불가)
+    unbuilt: true           # 단독 승격 금지 — 아래 promotion 규칙 참조
+    takes: [L3, L7]         # 색 관계, 이미지·그래픽 아이디어
+    drops: [L1, L4, L5, L6] # 여백·엘리베이션·모션·구조가 실재하지 않는다
+    note: |
+      샷 상당수가 실제 제품이 아니라 포트폴리오용 컨셉이다.
+      여백·모션·상태·반응형이 존재하지 않으므로 구현하면 무너진다.
+
+  - id: notefolio
+    url: https://notefolio.net/
+    kind: shot
+    auth: login
+    round: monthly
+    unbuilt: true
+    takes: [L2, L3]         # 한글 조판, 타이포 위계, 색 관계
+    drops: [L1, L4, L5, L6]
+    note: |
+      앱·웹이 아닌 작업(포스터·편집·패키지)이 다수인 것이 약점이 아니라 이 좁은 용도의 강점이다.
+      포스터·편집 디자인의 타이포 위계와 색 관계는 UI보다 과감하고,
+      무엇보다 **한글 조판**이다 — 불변항 Ⅰ-2가 한글 우선인데 서구 사이트에서는 안 나온다.
+      graphic 모드 작업의 1차 소스이기도 하다.
+      레이아웃·IA는 가져오지 않는다.
+
+  - id: mobbin
+    url: https://mobbin.com/
+    kind: shipped           # 실제 출시된 제품이지만 정적 스크린샷 — rendered도 shot도 아니다
+    auth: login             # 클라우드 스케줄은 로그인 불가 → 로컬 실행
+    round: monthly
+    verified: true          # 출시된 제품이므로 "구현 가능한가" 요건을 충족한다
+    takes: [L0, L3, L6, L7]       # 색 역할 · 구조/IA(플로우·빈상태·로딩·에러) · 톤
+    drops: [L5, L1]         # 모션은 정적 스크린샷으로 측정 불가.
+                            # 여백·그리드도 이미지에서 정확히 측정할 수 없다(추정만 가능)
+    note: |
+      L6(구조·IA — 플로우·빈 상태·로딩·에러)를 신뢰할 수 있는 유일한 소스.
+      다른 5개 소스 중 어느 것도 이 두 레이어를 주지 않는다.
+      Dribbble의 정확한 대척점 — unbuilt 문제가 없다.
+
+      **모션은 여전히 공백이다.** Mobbin은 정적 스크린샷이라 L5를 채우지 못한다.
+      현재 모션 소스는 Awwwards뿐이고 그건 마케팅 사이트다 →
+      프로덕트 모션은 미해결. Page Flows(영상, $99/년)가 후보이나 이번에는 보류.
+      모션 신호가 실제로 부족한지 몇 라운드 관측한 뒤 재검토한다.
+
+      한국 앱 커버리지 미확인 — 계정 확보 후 실제 한국 앱 수를 세어 여기에 기록할 것.
+
+  # ─── 2026-08-18 평가 후 추가 ───────────────────────────────────────────────
+
+  - id: designsystems-surf
+    url: https://designsystems.surf/design-systems
+    kind: system            # 완성된 디자인 시스템 문서 자체
+    auth: none              # 기본 열람 무료 (일부 유료)
+    round: quarterly        # 시스템은 주 단위로 안 바뀐다
+    verified: true
+    status: 검증완료         # 2026-08-18 직접 확인
+    takes: [L2, L3, L6]     # 토큰 역할 구조, 컴포넌트 분류, 문서화 방식
+    drops: [L5, L7]         # 모션·톤은 시스템 문서에 거의 없다
+    note: |
+      Carbon(IBM) · Polaris(Shopify) · Primer(GitHub) · Pajamas(GitLab) · Spectrum(Adobe) ·
+      GOV.UK · U.S. Web Design System · Porsche · Alaska Auro 등을 색인.
+      **시스템마다 토큰 수(D)와 컴포넌트 수(C)를 표시**한다.
+
+      우리 1순위 산출물이 UI_GUIDE(=디자인 시스템 문서)이므로 직접적으로 유용하다.
+      특히 `system/decision-logic.md` 의 위계 예산 지표와 **직접 비교 가능**하다 —
+      우리가 만든 가이드의 토큰 수가 업계 시스템 대비 과소·과다인지 판정하는 캘리브레이션.
+      GOV.UK·USWDS는 접근성 근거가 가장 두꺼워 불변항 Ⅰ-1 보강에도 쓸 수 있다.
+
+  - id: typewolf
+    url: https://www.typewolf.com/
+    kind: rendered
+    auth: none
+    round: monthly
+    verified: true
+    status: 미검증           # 접근성·구조 직접 확인 필요
+    takes: [L2]             # 타이포만. 실사용 중인 서체 조합
+    drops: [L1, L3, L4, L5, L6]
+    note: |
+      실제 운영 중인 사이트의 **서체 조합**을 식별해 보여준다.
+      우리 위계 예산에서 '서체·무게' 채널을 살릴 때 조합 근거가 된다.
+      라틴 전용이라 한글 조판에는 무관 — 한·영 분리 구성의 '영' 쪽에만 쓴다.
+
+  - id: refero
+    url: https://refero.design/
+    kind: shipped
+    auth: unknown
+    round: monthly
+    verified: true
+    status: 미검증           # SPA라 정적 fetch로 내용 확인 불가. 브라우저 또는 계정 필요
+    takes: [L6]             # UI 패턴별 색인 — 빈 상태·온보딩·대시보드·가격표
+    drops: [L5, L1]
+    note: |
+      **UI 패턴 단위로 색인**된다고 알려져 있다 (빈 상태·온보딩·가격표·대시보드).
+      사실이면 Mobbin과 함께 L6를 채우는 두 번째 소스가 되어
+      L6 신호의 정규 2소스 승격이 가능해진다.
+      → 채택 전 직접 확인 필요. 현재는 후보.
+
+  - id: uidatabase
+    url: https://uidatabase.com/
+    kind: shot
+    auth: none
+    round: monthly
+    unbuilt: true
+    verified: false
+    role: NEGATIVE          # ★ 유일하게 역할이 '부정'인 소스
+    status: 검증완료         # 성격만 확인
+    takes: []               # 여기서 배울 것을 가져오지 않는다
+    drops: [ALL]
+    note: |
+      **이 소스는 따라 하려고 보는 것이 아니라, 무엇이 포화됐는지 보려고 본다.**
+
+      큐레이션한 UI 패턴에 "ChatGPT·Cursor·v0에 붙여넣는 프로덕션용 AI 프롬프트"를
+      함께 배포한다. 즉 **플랫폼 귀속 기본값을 대량 유통하는 채널 그 자체**다.
+      이 프로젝트가 막으려는 균질성의 진원지에 가깝다.
+
+      그래서 역으로 가치가 있다 — 여기서 유행하는 패턴은
+      **6~12개월 안에 어디에나 있게 될 것**이므로,
+      `anti-patterns.md` 의 '포화' 후보를 **선행 지표로** 얻을 수 있다.
+      관측은 `observations/` L8의 '포화' 항목에만 기록하고,
+      '신선함'·'이식 최소단위'는 **기록하지 않는다.**
+
+  - id: apple-hig
+    url: https://developer.apple.com/design/human-interface-guidelines/
+    kind: system
+    auth: none
+    round: quarterly        # + WWDC(6월) 직후 이벤트 트리거
+    verified: true
+    status: 검증완료
+    takes: [L6, L1]         # 네이티브 관습, 세이프에어리어, 썸존, 네비 패턴
+    drops: [L3, L7]
+    note: |
+      iOS 관습이 바뀌면 `anti-patterns.md` L5(모바일=좁힌 웹)의 기준 자체가 움직인다.
+      따라서 `signals/` 가 아니라 **`invariants.md` Ⅱ의 consumer 모드 항목을 갱신**한다.
+
+  - id: material3
+    url: https://m3.material.io/
+    kind: system
+    auth: none
+    round: quarterly        # + Google I/O(5월) 직후
+    verified: true
+    status: 검증완료
+    takes: [L6, L1, L3]
+    drops: [L7]
+    note: Android 관습. apple-hig와 동일하게 invariants를 갱신한다.
+
+# ─── 승격 규칙 (harness/weekly-scan.md §3 보강) ────────────────────────────
+promotion:
+  min_independent_sources: 2
+  require_verified_source: true   # unbuilt 소스만으로는 절대 승격되지 않는다.
+                                  # 독립 2개 중 최소 1개는 verified: true 여야 한다.
+                                  # (kind: rendered 인 실사이트 또는 kind: shipped 인 Mobbin)
+  # 시장 특수적 신호 예외 — 2026-08-18 추가.
+  # 2소스 규칙은 "신호는 여러 소스에서 관측 가능하다"를 가정하는데,
+  # 한국 시장·한글 조판을 커버하는 주간 소스는 gdweb 하나뿐이라 그 가정이 깨진다.
+  # 예외가 없으면 한국 신호는 영원히 승격되지 않는다.
+  single_source_exception:
+    when: 해당 축을 커버하는 소스가 1개뿐일 때
+    min_entries_within_source: 3    # 같은 소스 내 서로 다른 항목 3건 이상
+    require_different_producer: true # 제작사·작가가 서로 달라야 한다 (하우스 스타일 배제)
+    note: 정규 2소스 요건이 충족되면(예: notefolio 월간 라운드) 예외 표시를 뗀다
+
+  # 구술 전용 승격 트랙 — 2026-10-11 추가 (승인 #28 C).
+  #
+  # 왜 필요했나: 구술은 '말한 것'이고 '구현된 것'이 아니므로 영구히 verified: false 다.
+  # 그래서 require_verified_source 가 구조적으로 막아 왔고, 추출 1,033항이
+  # 재료로만 쌓였다 — 관측 2026-10-09--knowledge-chain-audit 가 센 funnel 은
+  # 소스 23 → 관측 11 → 추출 1,033항 → 신호 1건이었다.
+  #
+  # 바를 낮추지 않고 '다르게' 세운다. 2출처가 아니라 3출처, 그리고 기계 환원 가능.
+  # 환원 가능성이 verified 요건을 대체한다 — 기계로 셀 수 있으면 컨셉이 아니다.
+  spoken_track:
+    when: 해당 축을 지지하는 소스가 전부 구술일 때
+    min_independent_sources: 3        # 표준 트랙보다 1개 많다
+    require_different_channel: true   # 같은 채널의 항목 3건은 1출처로 센다
+    require_machine_reducible: true   # 기계 검사(또는 토큰 제약)로 환원 가능해야 한다
+    mark_in_signal: "트랙: 구술 (3출처)"  # signals/ 머리말에 지위를 표시한다
+    note: |
+      require_different_channel 이 핵심이다. 승인 #19(폼 오류는 필드 옆에)가
+      이 요건에서 걸렸다 — 변화맹·무주의맹시·작업기억이라는 서로 독립된 세 기전이
+      같은 처방으로 수렴했지만 출처는 NNgroup 한 채널이었다.
+      기전의 독립은 출처의 독립이 아니다.
+
+      require_machine_reducible 이 두 번째 관문이다. 승인 #17(국소 최적화 ≠ 전역 최적화)이
+      이것을 통과한 이유는 decision-logic §3 의 '각 채널은 0이거나 3 이상'이
+      이미 그 신호의 전역 제약 형태이기 때문이다 — 요소별 검사로는 나오지 않는 수다.
+
+      비용: signals/ 의 지위가 균일하지 않게 된다. mark_in_signal 로 표시해 떠안는다.
+
+  # 반증 기록 — 2026-10-11 추가 (승인 #22 A).
+  falsification:
+    field: falsified_by          # signals/<slug>.md 머리말. 반증이 없어도 빈 칸으로 둔다
+    on_conflict: record          # 제거가 아니다. 적고 나서 판정한다
+    then_classify: [범위 제한, 축 정의 오류]
+    note: |
+      이 레포에서 실제로 일어난 쪽은 '축 정의 오류'가 더 많았다.
+      #29 가 그 예다 — decision-logic 의 graphic 규정을 반증하겠다고 만든 문항이
+      §3 이 금지한 0단계 vs 1단계를 비교했고, 규정은 틀리지 않았는데 문항이 틀렸다.
+      그래서 반증 기록이 강등을 자동으로 일으키지 않는다.
+
+  note: |
+    색·조판 아이디어는 들어오되, 구현 불가능한 컨셉이 규칙이 되는 것을 막는다.
+    초판은 `require_rendered_source` 였으나 Mobbin 추가로 기준을 `verified` 로 바꿨다 —
+    중요한 것은 "브라우저에서 렌더되는가"가 아니라 "실제로 출시된 제품에 존재하는가"다.
+
+# ─── 실무자 구술 소스 ───────────────────────────────────────────────────────
+# 2026-10-03 추가. 위 소스들과 종류가 다르다 — 사이트가 아니라 **사람의 판단**이고,
+# 측정이 아니라 **구술**이다. 그래서 별도 블록으로 둔다.
+#
+# 왜 필요했나: 등록 소스 11곳은 전부 '완성된 결과물'이다. L8(판단)을 적으려면
+# 결과물에서 트레이드오프를 역산해야 하는데, 그건 추론이다. 실무자가 "이것을 얻으려고
+# 저것을 포기했다"고 직접 말하는 소스가 하나도 없었다.
+# taxonomy L8 이 가장 중요한 레이어인데 그 층의 1차 자료가 없었던 셈이다.
+
+practitioner_sources:
+  - id: madia-uxui
+    url: https://www.youtube.com/@UXUIDesign
+    kind: spoken              # 렌더도 샷도 아니다. 구술이다
+    auth: none
+    round: on_demand          # 주간 스캔 대상이 아니다. 아카이브 전수 분석 방식
+    verified: false           # 측정 가능한 산출물이 아니므로 verified 가 될 수 없다
+    designated_by: user       # 사용자가 신뢰 소스로 직접 지정 (taste-anchor.md 와 같은 지위)
+    takes: [L8, L7, L6, L2]   # 판단·트레이드오프, 톤, IA 관행, 한글 타이포
+    drops: [L1, L3, L4, L5]   # 구술에서 나온 수치는 측정값이 아니다.
+                              # 여백·색·깊이·모션의 '값'은 이 소스로부터 신뢰하지 않는다
+    note: |
+      한국 실무 UI/UX 디자이너 채널(디자이너 마디아).
+      **전수 통독 완료 (2026-10-03)** — 수집 1,298편(롱폼 869 · 쇼츠 429),
+      자막 6,247,459자를 20,000자 × 320배치로 분할해 전 배치 통독. 추출 514항.
+      표본추출·키워드 선별 없음.
+        원관측 → observations/2026-10-03--madia-uxui-full-channel.md
+        합성   → system/criteria.md
+
+      **수확 분포가 비대칭이다.** 롱폼의 다수는 도구 튜토리얼(포토샵·일러스트·XD·피그마)이라
+      판단 밀도가 거의 0이다. 수확의 대부분은 라이브 컨펌(시청자 디자인 첨삭)과
+      **쇼츠**(압축된 실시간 크리틱)에서 나왔다 — 쇼츠가 토큰당 밀도 최고였다.
+      같은 채널을 재방문할 일이 생기면 쇼츠부터 본다.
+
+      **화자 편향**: 주 영역이 쇼핑·커머스 구축이고, 본인이 "비주얼 쪽에 포커스가
+      훨씬 많다"고 직접 밝힌다. consumer·marketing 에 강하고 tool·graphic 에 얕다.
+      접근성·다크모드·데이터시각화·국제화·성능은 1,298편에서 거의 0건이다
+      (공백 목록은 system/criteria.md §5).
+
+      **지위**: 단일 출처다. promotion 의 2소스 규칙으로는 signals/ 에 승격되지 않는다.
+      사용자 지정 신뢰 소스이므로 taste-anchor.md 와 같은 '기준점' 지위를 가진다 —
+      트렌드 신호가 아니라 **판단 기준**이다. 둘을 섞지 않는다.
+
+      **단일 채널 내 반복은 교차검증이 아니다.** 같은 사람이 100번 말해도 1출처다.
+      대신 '채널 내 반복 횟수'를 신뢰도 보조 지표로 기록하고, 외부 확인이 붙으면
+      그때 정규 승격 경로를 탄다.
+
+  # ─── 2차 구술 소스 (2026-10-04 실측 선정) ─────────────────────────────────
+  # 선정 근거: observations/2026-10-04--source-scan-round2.md
+  # 공통 성격: kind=spoken, verified=false(구술), round=on_demand, designated_by=user
+  # takes/drops 는 madia-uxui 와 동일 원칙 — 수치는 신뢰하지 않고 판단만 취한다.
+  # 단 chrome-devs 와 figma 는 공식 채널이라 L1/L3/L4 수치도 '사양'으로는 신뢰한다.
+
+  - id: chrome-devs
+    url: https://www.youtube.com/@ChromeDevs
+    kind: spoken
+    verified: false
+    designated_by: user
+    subs: 821000
+    videos: 2135
+    fills: [G8, G1, G3, G7]      # 성능 130 · 접근성 53 · 반응형 29 · 연구 23 (제목 실측)
+    takes: [L8, L7, L6, L2, L9]
+    note: |
+      1차가 전혀 답하지 못한 G8(성능)·G1(접근성)의 유일한 대형 소스.
+      **주의**: 2,135편의 상당수가 DevTools 릴리스 노트·Privacy Sandbox API라
+      전편 통독은 낭비다. 공백 축 매칭으로 우선순위를 매겨 읽는다.
+
+  - id: figma-official
+    url: https://www.youtube.com/@figma
+    kind: spoken
+    verified: false
+    designated_by: user
+    subs: 790000
+    videos: 1728
+    fills: [G6, G1, G2, G4]      # 디자인시스템 147 · 접근성 80 · 다크/토큰 55
+    takes: [L8, L7, L6, L4]
+    note: |
+      G6(디자인 시스템 거버넌스·토큰)의 최대 소스. Config 컨퍼런스 강연이 핵심이고
+      릴리스 노트는 노이즈다. 공식 채널이라 토큰·변수의 '사양'은 신뢰할 수 있다.
+
+  - id: kevin-powell
+    url: https://www.youtube.com/@KevinPowell
+    kind: spoken
+    verified: false
+    designated_by: user
+    subs: 1000000
+    videos: 1112
+    fills: [G3, G2, G1, G8]      # 반응형 80 · 다크 21 · 접근성 17
+    takes: [L8, L1, L5, L9]
+    note: |
+      G3(반응형·브레이크포인트)의 결정적 소스. 1차에서 이 축은 '1회 언급'이 전부였다.
+      CSS 구현자라 **주장에 코드가 붙는다** — 구술 소스 중 유일하게 재현 검증이 가능하다.
+
+  - id: juxtopposed
+    url: https://www.youtube.com/@Juxtopposed
+    kind: spoken
+    verified: false
+    designated_by: user
+    subs: 462000
+    videos: 43
+    fills: [G2, G3]
+    takes: [L8, L7, L3, L4]
+    note: |
+      43편뿐이지만 전편이 롱폼 UI 리디자인 비평이다(Spotify·YouTube·Instagram 전면 재설계,
+      Rise of the Dark Mode, 100 Years of Fictional UI). 1차에서 측정한 F1(판단 밀도)의
+      교과서 사례라 편수와 무관하게 채택했다.
+
+  - id: nngroup
+    url: https://www.youtube.com/@NNgroup
+    kind: spoken
+    verified: false
+    designated_by: user
+    subs: 320000               # ← 사용자 하한선 40만 미달. 승인 필요
+    videos: 1265
+    fills: [G7]                # 사용성 연구 150편 — 대체 소스 없음
+    takes: [L8, L6, L9]
+    note: |
+      **G7(사용성 테스트·정량 검증)을 메울 수 있는 유일한 채널이고 32만이다.**
+      하한선 40만을 적용하면 이 축은 영구 공백으로 남는다.
+      참고: 1차 지정 소스 마디아도 37.2만으로 같은 하한선 아래다.
+
+  - id: designcourse
+    url: https://www.youtube.com/@DesignCourse
+    kind: spoken
+    verified: false
+    designated_by: user
+    subs: 1180000
+    videos: 1321
+    fills: [G2, G3, G4, G8]
+    takes: [L8, L7, L9]
+    note: 도구 비중 33%라 수확률은 낮게 잡는다. 디자인↔코드 경계 판단이 주 수확 지점.
+
+  - id: jesse-showalter
+    url: https://www.youtube.com/@JesseShowalter
+    kind: spoken
+    verified: false
+    designated_by: user
+    subs: 446000
+    videos: 805
+    fills: [G3, G4, G7]
+    takes: [L8, L7, L6]
+    note: 커리어 비중 15%는 버린다.
+
+  - id: aj-smart
+    url: https://www.youtube.com/@AJSmart
+    kind: spoken
+    verified: false
+    designated_by: user
+    subs: 410000
+    videos: 420
+    fills: [G7]
+    takes: [L8, L9]
+    note: UX 프로세스·디자인 스프린트. 비주얼 판단이 아니라 '절차' 쪽 수확.
+
+  - id: malewicz
+    url: https://www.youtube.com/@MalewiczHype
+    kind: spoken
+    verified: false
+    designated_by: user
+    subs: 195000               # ← 하한선 미달. 승인 필요
+    videos: 500
+    fills: []
+    takes: [L8, L7, L2, L4]
+    note: 1차와 같은 '실무자 구술' 계열. 공백은 안 메우지만 판단 교차검증용 2번째 출처다.
+
+  - id: mizko
+    url: https://www.youtube.com/@Mizko
+    kind: spoken
+    verified: false
+    designated_by: user
+    subs: 220000               # ← 하한선 미달. 승인 필요
+    videos: 212
+    fills: [G7, G6, G3]
+    takes: [L8, L7]
+    note: 비즈니스·브이로그 혼입. 수확률 낮게 잡는다.
+
+# ─── 샘플링 정책 ───────────────────────────────────────────────────────────
+sampling:
+  per_source: [3, 5]              # 라운드당 소스별 3~5개 (총 15~25)
+  studio_cooldown_weeks: 4        # 같은 스튜디오·작가는 4주 재관측 금지.
+                                  # 한 곳의 하우스 스타일이 반복 승격되는 것을 막는다.
+  counterexample_per_round: 1     # 매 라운드 의도적 반례 1개.
+                                  # 없으면 확증편향으로 자산이 한 방향으로 굳는다.
+  counterexample_source: user     # 반례는 사용자가 고른다 — 내가 고르면 내 기준이 반영돼
+                                  # 반례 역할이 약해진다.
+  category_preference: [tool, dashboard, saas, b2b]  # 있으면 우선. 보조 기준일 뿐
+                                                     # (이 사이트들엔 해당 물량이 적다)
+
+# ─── 커버리지 축 ───────────────────────────────────────────────────────────
+coverage:
+  covered:
+    - 모션·인터랙션          # awwwards
+    - 타이포·색 시스템        # siteinspire, notefolio
+    - 비서구권 시각언어       # gdweb, notefolio  (잘 커버됨)
+    - 프로덕트 UI 실물·플로우  # mobbin (2026-08-18 추가)
+    - 디자인 시스템 규모 캘리브레이션  # designsystems-surf (2026-08-18)
+    - 플랫폼 HIG                # apple-hig, material3 (분기 + 이벤트)
+    - 포화 선행 지표             # uidatabase (역할: NEGATIVE)
+    - 실무 판단·트레이드오프(L8)  # madia-uxui (2026-10-03). 유일한 구술 소스
+  gaps:
+    - 프로덕트 모션           # mobbin은 정적. Awwwards는 마케팅 사이트. Page Flows 보류 중.
+                            # 현재 유일한 실질 공백
+    - 접근성·크래프트         # 소스가 아니라 검사기로 메운다 (scripts/contrast-check.mjs + axe)

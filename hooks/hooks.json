@@ -1,0 +1,28 @@
+{
+  "description": "디자인 장치 — 편집마다 토큰 대비와 AI 기본값 룩을 검출하고(PostToolUse), 측정하지 않은 디자인 편집으로 턴을 끝내지 않는다(Stop). 둘 다 design.config.json 이 있는 레포에서만 돈다 (D-18).",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/design-check.mjs\"",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/design-stop.mjs\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

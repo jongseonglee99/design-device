@@ -1,0 +1,20 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "design",
+  "description": "디자인 장치 — 자기 자신을 배포하는 단일 플러그인 마켓플레이스",
+  "owner": {
+    "name": "jongseong"
+  },
+  "plugins": [
+    {
+      "name": "design-device",
+      "description": "빌드 파이프라인의 디자인 앞단. 화면 정의 단계를 채우고 빌드 중 디자인 제약을 검출한다.",
+      "author": {
+        "name": "jongseong"
+      },
+      "category": "design",
+      "source": "./",
+      "homepage": "https://github.com/jongseonglee99/design-device"
+    }
+  ]
+}
