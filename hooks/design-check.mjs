@@ -87,7 +87,8 @@ const ledger = ledgerFile(ev);
 if (ledger) {
   try {
     mkdirSync(dataDir(), { recursive: true });
-    appendFileSync(ledger, JSON.stringify({ at: new Date().toISOString(), path: canon(file) }) + '\n');
+    // `agent` — 서브에이전트(생성자)의 편집인지. Stop 이 「아직 쓰는 중인 초안」을 가려낸다 (0.4.5)
+    appendFileSync(ledger, JSON.stringify({ at: new Date().toISOString(), path: canon(file), agent: ev.agent_id || undefined }) + '\n');
   } catch { /* 원장을 못 쓴 것은 Stop 이 보고할 일이지 편집을 막을 일이 아니다 */ }
 }
 

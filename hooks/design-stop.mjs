@@ -24,9 +24,15 @@
 //     만족시킬 수 없는 요구는 차단이 아니다.
 //  ④ 원장이 없거나 세션을 모르면 조용하다. 공용 원장으로 떨어뜨려
 //     **남의 레포 편집으로 차단**하는 것이 가장 빠르게 끄는 길이다 (`_ledger.mjs`).
+//  ⑤ **생성자가 아직 쓰는 초안은 묻지 않는다** (0.4.5). 생성자 서브에이전트의 편집도 같은 세션
+//     원장에 적히므로, 백그라운드 생성 중에 편집자가 턴을 끝내면 반쯤 쓴 파일에 영수증을 요구했다.
+//     편집자가 재면 생성자가 다시 고치고, 또 막혔다 — control_tower 10-30 에 같은 파일로 네 번.
+//     「생성은 자유롭게, 검증은 엄격하게」(#49) 와 반대다. 마지막 편집이 서브에이전트(`agent_id`)이고
+//     서브에이전트·워크플로가 아직 돌고 있으면(`background_tasks`) 미룬다 — 끝난 뒤의 Stop 이 한 번 묻는다.
 
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname, extname, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { ledgerFile, insideProject, projectDir, liveReceiptsFor, readReceipts } from './_ledger.mjs';
 
 let payload = {};
@@ -41,11 +47,16 @@ if (!ledger || !existsSync(ledger)) process.exit(0);
 
 const cwd = projectDir(payload);
 
-const edited = [...new Set(
-  readFileSync(ledger, 'utf8').split('\n').filter(Boolean)
-    .map((l) => { try { return JSON.parse(l).path; } catch { return null; } })
-    .filter(Boolean)
-    .filter((p) => insideProject(p, payload) && existsSync(p)))];
+const lastEdit = new Map();   // 파일 → 마지막 편집 줄 (누가 썼나)
+for (const l of readFileSync(ledger, 'utf8').split('\n').filter(Boolean)) {
+  try { const e = JSON.parse(l); if (e.path) lastEdit.set(e.path, e); } catch { /* 깨진 줄 */ }
+}
+const edited = [...lastEdit.keys()].filter((p) => insideProject(p, payload) && existsSync(p));
+
+// ⑤ 아직 도는 생성자. 이 값이 없는 Claude Code 에서는 알 수 없으므로 미루지 않는다(예전 동작).
+const generating = (payload.background_tasks ?? [])
+  .some((t) => /subagent|workflow/i.test(t.type ?? '') && !/complet|fail|kill|stop|done/i.test(t.status ?? ''));
+const drafting = (p) => generating && Boolean(lastEdit.get(p)?.agent);
 
 if (!edited.length) process.exit(0);
 
@@ -67,6 +78,8 @@ const DEFAULT_EXT = ['.html', '.htm', '.css', '.scss'];
 
 // ③ 디자인 표면만. 레포가 넓히고 싶으면 `receipts.ext` 로 넓힌다.
 const needsReceipt = [];
+const deferred = [];
+const modeOf = new Map();     // 파일 → 그 레포 설정의 모드 (안내 명령에 넣는다)
 for (const p of edited) {
   const conf = findConfig(p);
   if (!conf) continue;                                   // 옵트인 안 한 경로
@@ -75,7 +88,10 @@ for (const p of edited) {
   const exts = Array.isArray(conf.receipts?.ext) ? conf.receipts.ext : DEFAULT_EXT;
   const declaredToken = conf.paths?.tokens && resolve(conf.__dir, conf.paths.tokens) === p;   // 선언이 이름 추측보다 우선
   if (!exts.includes(extname(p)) && !TOKEN_FILE.test(p) && !declaredToken) continue;
-  if (liveReceiptsFor(p, payload).length === 0) needsReceipt.push(p);
+  if (liveReceiptsFor(p, payload).length > 0) continue;
+  if (drafting(p)) { deferred.push(p); continue; }
+  needsReceipt.push(p);
+  modeOf.set(p, conf.mode);
 }
 
 if (!needsReceipt.length) process.exit(0);
@@ -95,12 +111,26 @@ const shown = needsReceipt.slice(0, 12);
 const list = shown.map((p) => `  ${relative(cwd, p) || p}\n      ↳ ${why(p)}`).join('\n')
   + (needsReceipt.length > shown.length ? `\n  … 그리고 ${needsReceipt.length - shown.length}건 더` : '');
 
+// ★ **그대로 붙여 돌릴 수 있는 명령을 준다** (0.4.5). 예전 안내는 `<장치경로>` 자리표시였다 —
+// hook 메시지는 하네스가 펼치지 않으므로 모델이 경로를 찾아 헤매거나 `CLAUDE_PLUGIN_DATA=…` 를 손으로 붙였다.
+// 이 파일의 위치가 곧 장치 경로다. 폴더마다 한 줄 — gate 는 폴더를 받으면 안의 파일 전부에 영수증을 남긴다.
+const GATE = join(fileURLToPath(new URL('..', import.meta.url)), 'scripts', 'gate.mjs');
+const q = (x) => (/[\s'"$`]/.test(x) ? `'${x.replace(/'/g, `'\\''`)}'` : x);
+const cmds = [];
+const byDir = new Map();
+for (const p of needsReceipt) {
+  if (TOKEN_FILE.test(p)) { cmds.push(`node ${q(GATE)} contrast-check ${q(relative(cwd, p) || p)}`); continue; }
+  const d = relative(cwd, dirname(p)) || '.';
+  byDir.set(d, modeOf.get(p) ?? byDir.get(d));
+}
+for (const [d, m] of byDir) cmds.push(`node ${q(GATE)} slop-scan ${q(d)} --mode ${m ?? '<tool|consumer|marketing|graphic>'}`);
+const later = deferred.length ? `\n(생성자가 아직 쓰는 초안 ${deferred.length}건은 생성이 끝난 뒤에 묻는다.)\n` : '';
+
 process.stderr.write(
-  `[design-device] 디자인 표면 ${needsReceipt.length}건을 편집했고 **살아 있는 영수증이 없다**:\n${list}\n\n`
-  + `영수증을 남기는 래퍼로 돌린다 — 무엇을 쟀는지 기록된다:\n`
-  + `  node <장치경로>/scripts/gate.mjs contrast-check <토큰파일>\n`
-  + `  node <장치경로>/scripts/gate.mjs slop-scan <경로> --mode <모드>\n`
-  + `  node <장치경로>/scripts/gate.mjs --check <파일>\n\n`
+  `[design-device] 디자인 표면 ${needsReceipt.length}건을 편집했고 **살아 있는 영수증이 없다**:\n${list}\n${later}\n`
+  + `이 명령을 그대로 돌리면 영수증이 남는다 (cwd: 레포 루트):\n`
+  + cmds.map((c) => `  ${c}`).join('\n') + '\n'
+  + `  (렌더까지 잴 때: node ${q(GATE)} measure-render <파일>)\n\n`
   + `영수증은 파일이 바뀌면 만료된다 — 재고 나서 고쳤다면 다시 재야 한다.\n`
   + `이 요구를 끄려면 design.config.json 에 "receipts": false 를 적는다.\n`,
 );
