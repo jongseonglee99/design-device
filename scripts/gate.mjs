@@ -180,4 +180,4 @@ if (!files.length) {
 let device = null;
 try { device = JSON.parse(readFileSync(join(ROOT, '.claude-plugin/plugin.json'), 'utf8')).version; } catch { /* 버전 없이도 영수증은 유효하다 */ }
 writeReceipt({ gate: name, args: rest, exit, files, values: measured(out), device });
-process.exit(exit);
+process.exitCode = exit;   // exit() 는 파이프 출력을 64KB 에서 자른다 (2026-10-30)

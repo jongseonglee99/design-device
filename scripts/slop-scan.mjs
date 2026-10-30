@@ -54,6 +54,9 @@ const WEIGHTS = {
   G4: ['block', 'block', 'warn',  null],     // 이미지 트랙의 1fr
   M5: ['block', 'warn',  'warn',  null],     // transition-all · 레이아웃 속성 애니메이션
   IA7: ['block', 'block', 'warn', null],     // 상호작용 상태 미설계
+
+  // ─── 2026-10-30 신설 (승인 #55 A) ───
+  IA9: ['block', 'warn',  'info',  null],    // 메뉴 항목마다 설명문 (대화체 부제)
 };
 
 // ─── 기계 상한 (승인 #38 D, 2026-10-12) ────────────────────────────────────
@@ -74,6 +77,7 @@ const MACHINE_CAP = {
   G4:  'warn',  // 그 트랙에 이미지가 있는지를 정적으로 알 수 없다 (파일 단위 근사)
   T7:  'warn',  // `ch` 단위만 잴 수 있다. px·rem 은 폰트 크기를 알아야 환산된다
   IA7: 'warn',  // 어떤 선택자가 인터랙티브인지는 추정이다 (`:hover` 존재로 근사)
+  IA9: 'warn',  // 두 번째 글줄이 설명인지 데이터(마지막 수정 시각 등)인지는 모른다
   C7:  'warn',  // **값과 데이터를 구분하지 못한다** — 색 비교 페이지는 hex 를 비교 대상으로 싣는다
 };
 const RANK = { block: 3, warn: 2, info: 1 };
@@ -541,6 +545,39 @@ function collectPerFile(acc, text, rel, ext) {
     }
   }
 
+  // IA9 — 메뉴 항목마다 붙은 설명문 (승인 `#55 A`, 2026-10-30).
+  // control_tower 실사용 지적 F-2: 메뉴 아홉에 질문형 부제(「지금 뭐부터」 · 「뭐가 들어왔나」…) —
+  // 사용자 *"메뉴명과 메뉴명에 대한 설명이 너무 AI티가 많이 나"*. NN/g 메뉴 지침 7 *"not the place to get cute"*.
+  // 잡는 것: 내비게이션 안의 항목(a · button)이 **이름 + 두 번째 글줄**을 갖고, 그런 항목이 셋 이상 · 60% 이상.
+  // 숫자·단축키(배지 「3」 · 「⌘K」)는 두 번째 글줄로 치지 않는다 — 정보지 설명이 아니다.
+  if (ext === '.html') {
+    const NAV_OPEN = /<(nav|aside|ul|div|header)\b([^>]*)>/gi;
+    const isNav = (tag, attrs) => tag.toLowerCase() === 'nav' || /role\s*=\s*["']navigation["']/i.test(attrs)
+      || /class\s*=\s*["'][^"']*\b(nav|sidebar|side-nav|sidenav|menu|rail|lnb|gnb)\b/i.test(attrs);
+    const innerOf = (from, tag) => {           // 같은 이름의 중첩을 세어 닫는 태그를 찾는다
+      const re = new RegExp(`<(/?)${tag}\\b[^>]*>`, 'gi'); re.lastIndex = from; let depth = 1, m;
+      while ((m = re.exec(src))) { depth += m[1] ? -1 : 1; if (!depth) return src.slice(from, m.index); }
+      return src.slice(from);
+    };
+    const seen = new Set();
+    for (const m of src.matchAll(NAV_OPEN)) {
+      if (!isNav(m[1], m[2])) continue;
+      const body = innerOf(m.index + m[0].length, m[1]);
+      const items = [...body.matchAll(/<(a|button)\b[^>]*>([\s\S]*?)<\/\1>/gi)].map((x) => x[2]
+        .replace(/<(svg|style|script)\b[\s\S]*?<\/\1>/gi, ' ')
+        .split(/<[^>]+>/).map((t) => t.replace(/&nbsp;|\s+/g, ' ').trim())
+        .filter((t) => t && /[A-Za-z가-힣]/.test(t) && !/^[⌘⌥⇧^]?\s*\w?$/.test(t)));
+      if (items.length < 3) continue;
+      // 숫자가 든 두 번째 글줄은 상태 데이터다(「4장 옮김」 · 「넘침 1곳」 — Seemilar 탭 실측). 설명문이 아니다
+      const sub = items.filter((t) => t.length >= 2 && t[1].replace(/\s/g, '').length >= 4 && !/\d/.test(t[1]));
+      if (sub.length < 3 || sub.length / items.length < 0.6) continue;
+      const ex = sub.slice(0, 2).map((t) => `${t[0]} — ${t[1]}`).join(' · ');
+      if (seen.has(ex)) continue; seen.add(ex);
+      add('IA9', `메뉴 항목 ${sub.length}/${items.length} 개에 설명문이 붙어 있다`, ex.slice(0, 80),
+        '메뉴는 흔한 앱의 이름으로 — 이름이 자명하면 부제가 필요 없다 (톤 카드 9)');
+    }
+  }
+
   // C3 — 다크모드 = 반전. 다크 블록의 유채색 채도가 라이트와 같으면
   // 명도만 뒤집고 채도·엘리베이션을 재설계하지 않은 것이다.
   const darkAt = src.search(/(?:prefers-color-scheme\s*:\s*dark|\[data-theme\s*=\s*["']?dark)/i);
@@ -847,4 +884,4 @@ if (budget && !asJson) {
   }
 }
 
-process.exit(all.some((f) => f.severity === 'block') ? 1 : 0);
+process.exitCode = all.some((f) => f.severity === 'block') ? 1 : 0;   // exit() 는 파이프 출력을 64KB 에서 자른다 (2026-10-30)

@@ -64,6 +64,7 @@ const SCREENS = P.screens ?? 'docs/screens';
 const ledgerPath = join(ROOT, 'products', name, 'feedback-ledger.json');
 const ledger = existsSync(ledgerPath) ? JSON.parse(readFileSync(ledgerPath, 'utf8')) : { seenDecisions: [], seenCommits: [] };
 ledger.seenPicks ??= [];
+ledger.seenFields ??= [];
 
 // ─── ① DECISIONS.md 의 새 결정 — 전부. 디자인 어휘가 있는 것만 ★ ───
 const DESIGN_RE = /(디자인|design|UI_GUIDE|토큰|token|globals\.css|design-kit|와이어프레임|색|타이포|그림자|폰트|접근성|대비)/i;
@@ -136,6 +137,7 @@ for (const n of targetScreens) {
 // 「합성」 은 승인 `#49 A` (2026-10-13) — 고른 안에 다른 안의 장점을 합치는 2라운드
 const STRUCT_AXES = ['개념', '합성', '시각 체계', '골격', '정보 구조', '밀도 체계'];
 const picks = [];
+const fields = [];
 const pickPath = join(REPO, 'docs', 'design-ledger.md');
 if (existsSync(pickPath)) {
   const text = readFileSync(pickPath, 'utf8').replace(/<!--[\s\S]*?-->/g, '');
@@ -150,6 +152,13 @@ if (existsSync(pickPath)) {
       const k = m[1].trim().replace(/^(시안\s*[A-Z])\b.*$/, (_, a) => a.replace(/\s+/, ' '));
       row[k] = m[2].trim();
     }
+    // ★ ⑦ **실사용 지적** — 구현된 화면을 쓰다가 사용자가 한 말 (2026-10-30 — control_tower F-1~F-4).
+    // 시안 판정이 아니라서 「시안·선택이 없다」 로 ✗ 처리되고 있었는데, **가장 값진 종류**다: 사용자 말이 그대로 있고
+    // 세션이 「규칙으로」 · 「장치에(안티패턴 후보)」 까지 적어 두었다. 층 B 가 아니라 따로 모은다 → `products/field-findings.md`
+    if (/실사용/.test(id) || (row['사용자 말'] && !row['선택'])) {
+      if (!ledger.seenFields.includes(id)) fields.push({ id, row });
+      continue;
+    }
     // 타당성 요건 (system/taste-layer-b.md) — 어긴 것을 **적어서** 보고한다. 조용히 버리지 않는다.
     const problems = [];
     // ★ 칸에 **축 이름이 정확히 하나** 들어 있으면 그 축이다 (2026-10-12 수정 — 실측).
@@ -162,7 +171,8 @@ if (existsSync(pickPath)) {
     // 생성 라운드는 개념이 다른 셋이므로 「개념」, 정제는 축 하나를 확정하는 판정이므로 「정제」로 둔다.
     const roundCell = row['라운드'] ?? '';
     const axisCell = row['구조 축'] ?? (/생성/.test(roundCell) ? '개념' : /합성/.test(roundCell) ? '합성' : /정제/.test(roundCell) ? '정제' : '');
-    const named = [...STRUCT_AXES, '정제'].filter((a) => axisCell.includes(a));
+    // 괄호 안은 설명이다 — 「시각 체계 (3라운드 정제 — B 구조 고정)」 는 시각 체계 하나다 (Seemilar 실측, 2026-10-30)
+    const named = [...STRUCT_AXES, '정제'].filter((a) => axisCell.replace(/\([^)]*\)/g, '').includes(a));
     // ★ #49 이후 축 문제는 **보류(△)지 무효가 아니다** (2026-10-13) — 생성·합성 라운드의 판정은 측정이 아니라 방향 데이터다.
     // 실측: control_tower S07 「펼친 묶음 + 찾기 칸 더하기」(합성 판정, 「왜」 있음)가 세션이 지은 축 이름 때문에 ✗ 로 버려지고 있었다.
     if (named.length === 1) row['구조 축'] = named[0];
@@ -170,11 +180,17 @@ if (existsSync(pickPath)) {
     // ② 시안이 **하나도** 없으면 무효. 정제 「확정」은 시안 하나에 대한 판정이라 셋을 요구하지 않는다
     // (control_tower 정제 판정 3건이 「시안 셋이 없다」로 버려지고 있었다 — 2026-10-13)
     const variants = Object.keys(row).filter((k) => /^시안( [A-Z])?$/.test(k) && row[k] && !/^해당 없음/.test(row[k]));
-    if (!variants.length) problems.push('② 시안이 적혀 있지 않다');
-    if (!row['왜'] || /^\*?\*?한 줄/.test(row['왜'])) problems.push('③ 「왜」가 없다 — **회수하지 않는다**');
+    // ★ 시안 칸이 없어도 **제시 순서·선택이 무엇을 골랐는지 말하면** 보류(△)다 (2026-10-30 — Seemilar 실측).
+    // 세션들이 「시안 A/B/C」 칸 대신 「제시 순서 | A · B · C (`00-index.html`)」 + 「선택 | A (`S04-a.html`)」 로 적었고,
+    // 사용자 말이 따옴표로 길게 붙은 판정 20여 건이 「시안이 없다」 로 **전부 버려지고 있었다.** 가장 값진 데이터가 형식 때문에 빠졌다.
+    const shownOpts = (row['제시 순서'] ?? '').replace(/\([^)]*\)|`[^`]*`/g, '').split(/[·,/]/).map((x) => x.trim()).filter(Boolean);
+    if (!variants.length && (shownOpts.length > 1 || /\.html|^[A-Z0-9]\b/.test(row['선택'] ?? ''))) problems.push('②′ 시안 설명 칸이 없다 — 제시 순서·선택으로만 안다 (보류)');
+    else if (!variants.length) problems.push('② 시안이 적혀 있지 않다');
+    // 「왜」 칸이 차 있어도 **스스로 이유가 없다고 적은** 것은 없는 것이다 — 인용 밖에서만 본다(사용자 말 「이유가 전혀 없음」 은 이유다) (Seemilar 「(이유 메모 없음)」 · dogu 「이유를 따로 말하지 않았다」 — 2026-10-30)
+    if (!row['왜'] || /^\*?\*?한 줄/.test(row['왜']) || /이유[^.。]{0,8}(없음|말하지 않았다)/.test(row['왜'].replace(/["“][^"”]*["”]/g, ''))) problems.push('③ 「왜」가 없다 — **회수하지 않는다**');
     if (!/^(tool|consumer|marketing|graphic)$/.test(row['모드'] ?? '')) problems.push('④ 모드가 명시되지 않았다');
-    if (variants.length > 1 && (!row['제시 순서'] || /^A\s*·\s*B\s*·\s*C$/.test(row['제시 순서']))) problems.push('⑤ 제시 순서를 섞지 않았다(또는 안 적었다) — 위치 효과를 통제하지 못한다');
-    const invalid = problems.some((p) => /^[②③]/.test(p));   // ②③ 은 무효(시안·「왜」 없음), ①④⑤ 는 보류
+    if ((variants.length > 1 || shownOpts.length > 1) && (!row['제시 순서'] || /^A\s*·\s*B\s*·\s*C$/.test(row['제시 순서']))) problems.push('⑤ 제시 순서를 섞지 않았다(또는 안 적었다) — 위치 효과를 통제하지 못한다');
+    const invalid = problems.some((p) => /^(②|③)(?!′)/.test(p));   // ②③ 은 무효(시안·「왜」 없음), ①④⑤ 는 보류
     // ★ ⑥ 「왜」가 **사용자의 말**인가 (2026-10-13 — 세 레포 원장 실측).
     // dogu 는 「왜」에 *"3개 다 너의 제안으로 갈게"* 를 적고 이유 자리를 장치의 추천 근거로 채웠다(3건).
     // 토큰 결정 2건은 「왜」 전체가 장치의 판단이었고, control_tower S07-3 은 「(말하지 않음 — 추천 이유: …)」.
@@ -186,6 +202,9 @@ if (existsSync(pickPath)) {
     const DELEGATE = /(제안|추천)\s*(으로|대로)|알아서|맡길|맡긴|맡겨|(너|네)가\s*골라/;
     let delegated = '';
     if (/위임/.test(row['판정자'] ?? '')) delegated = '판정자: 위임';
+    // 확신·선택 칸이 위임을 말하는 경우 (Seemilar 「위임(사용자 판정 아님 …)」 · 「**Claude 가 고름**」, control_tower 「세션 추천」)
+    else if (/시안\s*판정\s*아님/.test(row['확신'] ?? '')) delegated = '시안 판정이 아니라 사용자 지시 — 층 B 에 넣지 않는다';
+    else if (/위임|세션\s*추천/.test(row['확신'] ?? '') || /Claude\s*가\s*고름|세션\s*추천/.test(row['선택'] ?? '')) delegated = '확신·선택 칸: 위임 · 세션 추천';
     else if (/장치/.test(row['판정자'] ?? '')) delegated = '판정자: 장치 — 사용자에게 묻지 않은 결정';
     else if (why && DELEGATE.test(why)) delegated = `위임 문구 — 「${why.match(DELEGATE)[0]}」`;
     else if (why && !invalid && !quoted) delegated = '「왜」에 사용자 말(따옴표 인용)이 없다 — 적힌 이유는 장치의 것이다';
@@ -193,9 +212,11 @@ if (existsSync(pickPath)) {
   }
 }
 
-const report = { repo: name, decisions, commits, drift, copies, stale, prd, picks };
-const pending = decisions.length + commits.length + picks.length + copies.length + stale.length;
-if (asJson) { console.log(JSON.stringify(report, null, 2)); process.exit(pending ? 1 : 0); }
+const report = { repo: name, decisions, commits, drift, copies, stale, prd, picks, fields };
+const pending = decisions.length + commits.length + picks.length + fields.length + copies.length + stale.length;
+// 파이프에서 64KB 를 넘으면 `process.exit` 가 출력을 자른다(gate 에서 겪은 것 — 2026-10-30 회수 JSON 이 잘렸다). 다 쓴 뒤에 끝낸다.
+if (asJson) { process.stdout.write(JSON.stringify(report, null, 2) + '\n', () => process.exit(pending ? 1 : 0)); }
+else {
 
 console.log(`[collect-feedback] ${name}`);
 if (decisions.length) {
@@ -230,6 +251,14 @@ if (picks.length) {
   }
   console.log('  ✓ 회수 · △ 보류(회수하되 표시) · ✗ 무효(고치면 다시 올라온다) · ⊘ 위임·장치 판단(층 B 에 넣지 않는다)');
 }
+if (fields.length) {
+  console.log(`\n── ★ 실사용 지적 ${fields.length}건 — 구현된 화면을 쓰다가 한 말 (안티패턴·톤 카드 후보) ──`);
+  for (const { id, row: r } of fields) {
+    console.log(`  ★ ${id}\n     화면: ${r['화면'] ?? '?'}`);
+    if (r['사용자 말']) console.log(`     말: ${r['사용자 말'].slice(0, 400)}`);
+    if (r['장치에']) console.log(`     장치에: ${r['장치에']}`);
+  }
+}
 if (!pending && drift.clean) console.log('\n새 항목 없음.');
 else console.log(`\n확인 후 원장에 기록: node scripts/collect-feedback.mjs ${target} --ack`);
 
@@ -258,8 +287,28 @@ if (args.includes('--ack')) {
     ledger.seenPicks.push(...keep.map((pk) => pk.id));
     console.log(`층 B 원장에 ${keep.length}건: system/taste-layer-b.md`);
   }
+  if (fields.length) {
+    const ff = join(ROOT, 'products', 'field-findings.md');
+    let body = existsSync(ff) ? readFileSync(ff, 'utf8')
+      : '# 실사용 지적 — 구현된 화면을 쓰다가 사용자가 한 말\n\n'
+        + '> `collect-feedback.mjs` ⑦ 이 소비 레포 `docs/design-ledger.md` 에서 모은다. **후보 저장소**다 —\n'
+        + '> `system/anti-patterns.md` · `system/tone-card.md` 로 올리려면 승인(`approvals.mjs`)을 거친다.\n'
+        + '> 두 레포 이상 · 두 번 이상 나온 지적이 먼저다.\n';
+    for (const { id, row: r } of fields) {
+      body += `\n## ${id} · ${name}\n\n- 화면 — ${r['화면'] ?? ''}\n`
+        + (r['종류'] ? `- 종류 — ${r['종류']}\n` : '')
+        + `\n> **사용자 말** — ${r['사용자 말'] ?? ''}\n\n`
+        + (r['앞선 같은 지적'] ? `- 앞선 같은 지적 — ${r['앞선 같은 지적']}\n` : '')
+        + (r['규칙으로'] ? `- 규칙으로(세션 정리) — ${r['규칙으로']}\n` : '')
+        + (r['장치에'] ? `- 장치에(세션 제안) — ${r['장치에']}\n` : '');
+    }
+    writeFileSync(ff, body);
+    ledger.seenFields.push(...fields.map((f) => f.id));
+    console.log(`실사용 지적 ${fields.length}건: products/field-findings.md`);
+  }
   mkdirSync(dirname(ledgerPath), { recursive: true });
   writeFileSync(ledgerPath, JSON.stringify(ledger, null, 2) + '\n');
   console.log(`원장 갱신: ${ledgerPath.replace(ROOT + '/', '')}`);
 }
-process.exit(pending ? 1 : 0);
+process.exitCode = pending ? 1 : 0;   // exit() 는 파이프 출력을 64KB 에서 자른다 (2026-10-30)
+}

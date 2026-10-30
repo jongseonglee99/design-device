@@ -117,4 +117,4 @@ if (verdict === 'collect') {
   }
 }
 console.log('');
-process.exit(verdict === 'collect' ? 0 : 3);
+process.exitCode = verdict === 'collect' ? 0 : 3;   // exit() 는 파이프 출력을 64KB 에서 자른다 (2026-10-30)

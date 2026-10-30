@@ -217,4 +217,4 @@ console.log(`\n  판정: ${verdict}${blocked ? '  ← generic 또는 craft 가 0
 for (const c of final.comments) console.log(`  [${c.axis}] ${c.issue}\n     → ${c.suggestion}`);
 console.log(`\n  저장: ${dest.replace(ROOT + '/', '')}`);
 console.log('  리뷰어는 산출물을 수정하지 않는다. 수정은 사람이 판단한다.');
-process.exit(verdict === 'blocking' ? 1 : 0);
+process.exitCode = verdict === 'blocking' ? 1 : 0;   // exit() 는 파이프 출력을 64KB 에서 자른다 (2026-10-30)

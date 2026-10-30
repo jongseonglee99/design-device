@@ -319,4 +319,4 @@ if (asJson) {
   for (const w of warns) console.log(`  ⚠️  ${w}`);
   console.log(errs.length ? `\n출제 불가 — 결함 ${errs.length}건` : `\n출제 가능${warns.length ? ` (경고 ${warns.length}건)` : ''}`);
 }
-process.exit(errs.length ? 1 : 0);
+process.exitCode = errs.length ? 1 : 0;   // exit() 는 파이프 출력을 64KB 에서 자른다 (2026-10-30)

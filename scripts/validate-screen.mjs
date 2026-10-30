@@ -235,4 +235,4 @@ else {
   const bad = results.filter((r) => r.errs.length).length;
   console.log(`\n${results.length}건 검사 · 위반 ${bad}건`);
 }
-process.exit(results.some((r) => r.errs.length) ? 1 : 0);
+process.exitCode = results.some((r) => r.errs.length) ? 1 : 0;   // exit() 는 파이프 출력을 64KB 에서 자른다 (2026-10-30)

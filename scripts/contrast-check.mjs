@@ -240,4 +240,4 @@ if (asJson) {
     console.log(`\n총 ${findings.length}건 (차단 ${findings.filter((f) => f.severity === 'block').length}). 불변항 Ⅰ-1.`);
   }
 }
-process.exit(findings.some((f) => f.severity === 'block') ? 1 : 0);
+process.exitCode = findings.some((f) => f.severity === 'block') ? 1 : 0;   // exit() 는 파이프 출력을 64KB 에서 자른다 (2026-10-30)

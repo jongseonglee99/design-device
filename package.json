@@ -1,6 +1,6 @@
 {
   "name": "design-device",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "private": true,
   "type": "module",
   "description": "빌드 파이프라인의 디자인 앞단. PRD·ARCHITECTURE·ADR 다음에 비어 있던 화면 정의 단계를 채운다 — UI 가이드, 화면 상세 문서, HTML 아트보드, 추천 원장을 빌드 시작 전에 확정하고, 빌드 중에는 편집마다 토큰 대비와 AI 기본값 룩을 검출한다. 모드(tool/consumer/marketing/graphic)가 루브릭과 허용치를 함께 정한다.",

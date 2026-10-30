@@ -126,4 +126,4 @@ if (has('--all') && rest.length) {
   console.log('');
 }
 
-process.exit(open.length ? 1 : 0);
+process.exitCode = open.length ? 1 : 0;   // exit() 는 파이프 출력을 64KB 에서 자른다 (2026-10-30)
