@@ -53,16 +53,17 @@ const probes = (() => {
 })();
 
 // ③ 대상 레포 시안 판정 대기 — 머리에 「판정 대기」 가 있고, 그 항목이나 뒤의 「사용자 판정 (날짜) — …코드…」 절이 답하지 않은 것
+// 날짜 뒤에 「오후」 「저녁」 이 붙는다 — 첫 판은 `(2026-10-16)` 만 알아봐서 이미 판정한 6건을 「15일째 대기」 로 밀었다(2026-10-31)
 function ledgerPending(path) {
   if (!existsSync(path)) return null;
   const text = readFileSync(path, 'utf8').replace(/<!--[\s\S]*?-->/g, '');
-  const answered = [...text.matchAll(/^#{2,4} .*사용자 판정 \(\d{4}-\d{2}-\d{2}\)(.*)$/gm)].map((m) => m[1]);
+  const answered = [...text.matchAll(/^#{2,4} .*사용자 판정 \(\d{4}-\d{2}-\d{2}[^)]*\)(.*)$/gm)].map((m) => m[1]);
   const out = [];
   for (const blk of text.split(/^## /m).slice(1)) {
     const head = blk.split('\n')[0];
     const id = head.match(/^P-(\d{4}-\d{2}-\d{2})-([A-Za-z0-9]+)/);
     if (!id || !/판정 대기/.test(head)) continue;
-    if (/사용자 판정 \(\d{4}-\d{2}-\d{2}\)|^\|\s*사용자 말\s*\|\s*["“]/m.test(blk)) continue;
+    if (/사용자 판정 \(\d{4}-\d{2}-\d{2}[^)]*\)|^\|\s*사용자 말\s*\|\s*["“]/m.test(blk)) continue;
     if (answered.some((a) => new RegExp(`\\b${id[2]}\\b`).test(a))) continue;
     const screen = (blk.match(/^\|\s*화면\s*\|\s*([^|]+)\|/m)?.[1] ?? '').replace(/`[^`]*`|\*\*/g, '').replace(/\(\s*\)/g, '').replace(/\s{2,}/g, ' ').trim();
     out.push({ id: head.split(/\s+\(/)[0].trim(), date: id[1], code: id[2], screen: screen.slice(0, 60) });
@@ -80,8 +81,16 @@ function weekWork(r) {
   return { commits: lines.length, recent: lines.slice(0, 4).map((l) => { const [d, s] = l.split('\t'); return { date: d, subject: s.slice(0, 70) }; }) };
 }
 
+// ⑤ 게시 — 판정할 페이지에 링크가 있는가 (`harness/published.json`). 6회차 측정기는 파일만 있고 19일 동안 링크가 없었다
+const published = (() => { try { return JSON.parse(readFileSync(join(ROOT, 'harness', 'published.json'), 'utf8')); } catch { return {}; } })();
+for (const p of probes) p.url = published[p.file] ?? null;
+const decisionsDir = join(ROOT, 'harness', 'decisions');
+const briefs = existsSync(decisionsDir) ? readdirSync(decisionsDir).filter((f) => f.endsWith('.html'))
+  .map((f) => ({ file: `harness/decisions/${f}`, url: published[`harness/decisions/${f}`] ?? null })) : [];
+const unpublished = [...probes.filter((p) => !p.url).map((p) => p.file), ...briefs.filter((b) => !b.url).map((b) => b.file)];
+
 const repos = REPOS.map((r) => ({ name: r.name, waiting: ledgerPending(r.ledger), week: weekWork(r) }));
-const report = { at: new Date().toISOString(), approvals, probes, repos };
+const report = { at: new Date().toISOString(), approvals, probes, unpublished, repos };
 
 if (args.includes('--json')) { process.stdout.write(JSON.stringify(report, null, 2) + '\n'); process.exitCode = 0; }
 else if (args.includes('--summary')) {
@@ -90,13 +99,15 @@ else if (args.includes('--summary')) {
   if (waitN) parts.push(`시안 판정 ${waitN}건`);
   if (probes.length) parts.push(`취향 측정 ${probes.map((p) => `${p.n}회차`).join('·')} 미판정`);
   if (approvals.length) parts.push(`승인 ${approvals.length}건`);
+  if (unpublished.length) parts.unshift(`게시 안 된 판정 페이지 ${unpublished.length}개`);
   console.log(parts.length ? `밀린 것 — ${parts.join(' · ')}` : '밀린 것 없음');
 } else {
   console.log(`밀린 것 — ${new Date().toLocaleDateString('ko-KR')}\n`);
   console.log(`■ 승인 대기 ${approvals.length}건`);
   for (const a of approvals) console.log(`  #${a.id} (${a.raised}) ${a.title.slice(0, 80)}`);
   console.log(`\n■ 취향 측정기 미판정 ${probes.length}개`);
-  for (const p of probes) console.log(`  ${p.n}회차 — ${p.file}${p.since ? ` · ${days(p.since)}일째` : ''}`);
+  for (const p of probes) console.log(`  ${p.n}회차 — ${p.url ?? `${p.file} · ⚠️ 게시되지 않았다 (링크가 없으면 판정할 수 없다)`}${p.since ? ` · ${days(p.since)}일째` : ''}`);
+  if (unpublished.length) { console.log(`\n■ 게시 안 된 판정 페이지 ${unpublished.length}개 — Artifact 로 게시하고 harness/published.json 에 링크를 적는다`); for (const f of unpublished) console.log(`  ${f}`); }
   console.log('\n■ 시안 판정 대기 (대상 레포 원장)');
   for (const r of repos) {
     if (r.waiting === null) { console.log(`  ${r.name} — 원장을 읽지 못했다`); continue; }

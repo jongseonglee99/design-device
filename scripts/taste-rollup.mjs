@@ -327,8 +327,22 @@ for (const { mode, axis, rows: allRows } of byAxis.values()) {
 
   // 상태 판정 — 요건 1·3·4 를 기계로 확인할 수 있는 만큼만 본다.
   // 요건 2(1변수)는 문항 정의 쪽이라 probe-lint 가 본다. 요건 5(모드)는 키에 들어 있다.
+  // ★ 최근 회차의 재측정이 「동일」·「문항오류」 이면 예전 선호를 재확인하지 못한 것이다 (2026-10-31 — 6회차).
+  // 집계는 tie·bad 를 `real` 에서 빼고 예전 판정만으로 「통과」 를 냈다: 중립색 온도(6회차 4문항 중 동일 3)와
+  // 유채색 면적(문항오류 + 동일)이 그대로 통과로 남았다. 같은 축의 **가장 최근 회차**가 2/3 이상 동일·반려면 그 판정이 이긴다.
+  const lastRound = rows.length ? rows[rows.length - 1].round : null;
+  const latest = rows.filter((r) => r.round === lastRound);
+  const latestNo = latest.filter((r) => ['tie', 'bad'].includes(r.pick));
+  const olderReal = rows.filter((r) => r.round !== lastRound && !['tie', 'bad'].includes(r.pick));
+  const retestRejected = olderReal.length && latest.length && latestNo.length / latest.length >= 2 / 3;
+  const badWhy = latest.filter((r) => r.pick === 'bad' && r.why).map((r) => `${r.id} "${r.why}"`).join(' · ');
+
   let status, reason;
-  if (bads && !real.length)      { status = '무효';     reason = '문항 반려'; }
+  if (retestRejected && latestNo.every((r) => r.pick === 'bad') && latestNo.length === latest.length)
+                                  { status = '무효'; reason = `최근 회차(${lastRound}) 재측정에서 문항 반려 — ${badWhy}`; }
+  else if (retestRejected)        { status = '판별불가';
+                                    reason = `최근 회차(${lastRound}) 재측정 ${latest.length}문항 중 동일·반려 ${latestNo.length} — 예전 선호(${olderReal.map((r) => r.id).join('/')})를 재확인하지 못했다${badWhy ? ` · ${badWhy}` : ''}`; }
+  else if (bads && !real.length)      { status = '무효';     reason = '문항 반려'; }
   else if (!real.length)          { status = '판별불가'; reason = '전부 동일/반려'; }
   else if (consist === 'fail')    { status = '무효';     reason = '위치 효과 — 변형이 달라도 같은 위치'; }
   else if (consist === 'same-position') { status = '미검증'; reason = 'flip 쌍의 위치가 같다'; }

@@ -165,8 +165,8 @@ if (name === 'measure-render' && rest.includes('--url')) {
 // `measure-render` 는 playwright 가 없거나 렌더가 비면 「미측정」을 말하고 exit 0 으로 통과한다(D-18).
 // 그 출력에 영수증을 남기면 **재지 않은 파일이 잰 것으로 기록되고 Stop 이 통과한다** — 이 래퍼가
 // 막으려는 바로 그 거짓이다. exit 0 은 「위반 없음」이지 「쟀다」가 아니다.
-if (name === 'measure-render' && /\*\*미측정\*\*|"measured":\s*false/.test(out)) {
-  console.error('gate: measure-render 가 재지 못했다(미측정) — 영수증을 남기지 않는다.');
+if ((name === 'measure-render' || name === 'contrast-check') && /\*\*미측정\*\*|"measured":\s*false/.test(out)) {
+  console.error(`gate: ${name} 가 재지 못했다(미측정) — 영수증을 남기지 않는다.`);
   process.exit(exit);
 }
 if (!files.length) {

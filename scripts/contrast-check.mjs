@@ -154,7 +154,7 @@ const WHITE = [255, 255, 255], BLACK = [0, 0, 0];
 const findings = [];
 
 // 1) 전경 토큰 × 배경 토큰
-let skippedCross = 0, skippedSurface = 0;
+let skippedCross = 0, skippedSurface = 0, measuredPairs = 0;
 // 스케일 토큰(ink-100, gray-200 …)의 낮은 단계는 보더·구분선·표면이지 텍스트가 아니다.
 // 2:1 미만을 본문 텍스트로 의도하는 디자인 시스템은 없으므로 '표면 쌍'으로 보고 제외한다.
 const isScaleStep = (n) => /[-_]\d{2,3}$/.test(n);
@@ -162,6 +162,7 @@ for (const fg of fgs) for (const bg of bgs) {
   if (fg.ns !== bg.ns) { skippedCross++; continue; }  // 교차 네임스페이스는 실사용 쌍이 아니다
   const r0 = ratio(fg.rgb, bg.rgb);
   if (r0 < 2 && isScaleStep(fg.name)) { skippedSurface++; continue; }
+  measuredPairs++;
   const r = r0;
   if (r < 4.5) {
     findings.push({
@@ -177,6 +178,7 @@ for (const fg of fgs) for (const bg of bgs) {
 //    흰/검정 중 '좋은 쪽'만 보면 안 된다 — 브랜드 채움의 기본 의도는 흰 텍스트이고,
 //    검정이 통과한다는 사실이 흰 텍스트 실패를 가려준다.
 for (const b of brands) {
+  measuredPairs++;
   if (NOT_FILL_RE.test(b.name)) continue;          // 틴트·보더 등은 채움면이 아니다
   if (/rgba?\([^)]*,\s*0?\.\d+\s*\)/.test(b.value)) continue;  // 알파 있는 값은 채움면으로 보지 않는다
   const rw = ratio(WHITE, b.rgb), rb = ratio(BLACK, b.rgb);
@@ -224,13 +226,16 @@ for (const b of brands) {
 findings.sort((a, b) => a.ratio - b.ratio);
 
 if (asJson) {
-  console.log(JSON.stringify({ root, tokens: tokens.length, bgs: bgs.length, fgs: fgs.length, brands: brands.length, findings }, null, 2));
+  console.log(JSON.stringify({ root, tokens: tokens.length, bgs: bgs.length, fgs: fgs.length, brands: brands.length, measuredPairs, measured: measuredPairs > 0, findings }, null, 2));
 } else {
   console.log(`[contrast-check] 색 토큰 ${tokens.length}개 (배경 ${bgs.length} / 전경 ${fgs.length} / 브랜드 ${brands.length}) — ${root}`);
   console.log(`  네임스페이스: ${[...new Set(tokens.map((t) => t.ns))].join(', ')}`);
   console.log(`  제외: 교차 네임스페이스 ${skippedCross}쌍 · 표면으로 판정된 스케일 단계 ${skippedSurface}쌍`);
   if (!tokens.length) console.log('  색 토큰을 찾지 못했다. :root 커스텀 프로퍼티나 theme 객체가 있는 경로를 지정할 것.');
-  if (!findings.length) console.log('\n통과 — 대비 위반 없음.');
+  // ★ 0쌍을 재고 「통과」 를 말하지 않는다 (2026-10-31 — dogu 이벤트 페이지 조사에서 실측: 잰 쌍 0개인데 「통과」).
+  // 통과가 「덜 쟀다」 의 다른 이름이 되는 같은 종류의 결함이다(위 camelCase 주석). gate 는 이 줄을 보고 영수증을 남기지 않는다.
+  if (!measuredPairs) console.log(`\n**미측정** — 잰 쌍이 0개다 (전경 ${fgs.length} · 배경 ${bgs.length} · 교차 제외 ${skippedCross}). 통과가 아니다.`);
+  else if (!findings.length) console.log(`\n통과 — 대비 위반 없음 (${measuredPairs}쌍을 쟀다).`);
   else {
     for (const f of findings) {
       console.log(`\n${f.severity === 'block' ? '❌' : '⚠️ '} ${f.pair}  ${f.ratio}:1 (필요 ${f.need}:1)`);

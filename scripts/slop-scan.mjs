@@ -42,7 +42,8 @@ const WEIGHTS = {
   T3: ['warn',  'warn',  'warn',  'block'],
   M2: ['block', 'warn',  'warn',  null],
   M3: ['block', 'block', 'block', null],
-  M4: ['block', 'warn',  'info',  null],
+  M4: ['block', 'block', 'block', 'block'],  // 멈출 수 없는 자동 모션 (2026-10-31 재정의) — 멈춤도 줄이기 대응도 없다
+  M4s:['block', 'warn',  'warn',  'warn'],   // 줄이기 대응만 있고 화면 안 멈춤 수단이 없다 · tool 은 입력 화면 루프라 차단 유지
   IA3: ['block', 'info', 'warn',  null],
   I4: ['warn',  'warn',  'block', 'warn'],
   I5: ['warn',  'info',  'warn',  null],
@@ -84,8 +85,19 @@ const MACHINE_CAP = {
   C7:  'warn',  // **값과 데이터를 구분하지 못한다** — 색 비교 페이지는 hex 를 비교 대상으로 싣는다
 };
 const RANK = { block: 3, warn: 2, info: 1 };
+// 유형(kind) — `system/kinds.md`. 가중치는 WEIGHTS → KIND_ADJUST → MACHINE_CAP 순서. 인자가 없으면 지금과 같다
+const kind = (() => { const i = process.argv.indexOf('--kind'); return i >= 0 ? process.argv[i + 1] : null; })();
+const KIND_ADJUST = {
+  event:    { M2: 'warn', IA3: 'info', M4s: 'warn' },   // 이벤트는 풍부함이 기본 — 등장 연출은 정당화 요구까지, 막는 것은 「멈출 수 없음」
+  landing:  { IA3: 'info' },
+  diegetic: { M4s: 'warn' },
+};
+
 /** 표의 등급을 기계 상한으로 누른다. 상한이 없으면 표 그대로다. */
 function applyCap(code, sev) {
+  // 유형 보정이 먼저(유형 상한) — `kind` 는 아래 실행부에서 정해진다. 함수는 그 뒤에 불린다
+  const kcap = kind ? KIND_ADJUST[kind]?.[code] : null;
+  if (sev && kcap && RANK[sev] > RANK[kcap]) sev = kcap;
   const cap = MACHINE_CAP[code];
   if (!sev || !cap) return sev;
   return RANK[sev] > RANK[cap] ? cap : sev;
@@ -350,10 +362,31 @@ function collectPerFile(acc, text, rel, ext) {
     }
   }
 
-  // M4 — 무한 루프 모션.
-  for (const m of src.matchAll(/animation[^;}\n]*\binfinite\b[^;}\n]*/gi)) {
-    add('M4', '무한 루프 모션', m[0].trim().slice(0, 80),
-      '입력 대기 중 인터럽트성 애니메이션은 금지다 (I4 원관측 — "5초 룰")');
+  // M4 — **멈출 수 없는** 자동 모션 (2026-10-31 재정의, 결정 브리프 7-5 A).
+  // 옛 판은 `infinite` 이면 무조건 걸었다 — 스피너를 오탐했고(tool ❌), marketing ℹ️ 는 WCAG 2.2.2(A)보다 약했고,
+  // 사용자 말(톤 카드 9 「플로팅이 지속적으로 나오는 한이 있더라도」 · 이벤트 장식 「2개 이상」)과 부딪혔다.
+  // 이제: 계속 움직이는 것이 있는데 ① 멈춤 수단도 ② 움직임 줄이기 대응도 없으면 M4 ❌, ②만 있으면 M4s(tool ❌ · 그 밖 ⚠️).
+  // 로딩 스피너·스켈레톤은 면제 — 「기다리는 중」 이라는 정보다.
+  {
+    const SPIN = /spin|loader|loading|skeleton|shimmer|progress|busy|pending/i;
+    const loops = [];
+    for (const m of src.matchAll(/([^{}@]+)\{([^{}]*\binfinite\b[^{}]*)\}/gi)) {
+      const sel = m[1].trim(), body = m[2];
+      const kf = (body.match(/animation(?:-name)?\s*:\s*([\w-]+)/i) ?? [])[1] ?? '';
+      if (SPIN.test(sel) || SPIN.test(kf)) continue;
+      loops.push(sel.split('\n').pop().trim().slice(0, 40));
+    }
+    for (const m of src.matchAll(/iterations\s*:\s*Infinity|repeat\s*:\s*-1/g)) loops.push(`스크립트 ${m[0].replace(/\s+/g, '')}`);
+    if (loops.length) {
+      const reduceOk = /prefers-reduced-motion/i.test(src);
+      const stopOk = /animation-play-state\s*:\s*paused|\.pause\(\)|\.cancel\(\)|\.kill\(\)/i.test(src)
+        && /<button[^>]*>[^<]*(멈춤|멈추|정지|일시\s*정지|pause|stop)|aria-label\s*=\s*["'][^"']*(멈춤|멈추|정지|pause|stop)/i.test(src);
+      const ex = [...new Set(loops)].slice(0, 3).join(' · ');
+      if (!stopOk && !reduceOk) add('M4', `멈출 수 없는 자동 모션 ${loops.length}개 — 멈춤 수단도 움직임 줄이기 대응도 없다`, ex,
+        '화면 안 멈춤 버튼(animation-play-state: paused)과 prefers-reduced-motion 대응을 둘 다 둔다 (WCAG 2.2.2)');
+      else if (!stopOk) add('M4s', `계속 움직이는 것 ${loops.length}개 — 움직임 줄이기 대응은 있지만 화면 안 멈춤 수단이 없다`, ex,
+        '5초 넘게 자동으로 움직이면 멈출 수단을 둔다. 작업 도구라면 입력 화면의 루프 자체를 뺀다 (30days "5초 룰")');
+    }
   }
 
   // M2 — 스크롤 리빌 도배. 같은 리빌 클래스가 4회 이상 반복되면 섹션마다 걸린 것으로 본다.
@@ -837,7 +870,8 @@ const wantBudget = args.includes('--budget');
 const flagVal = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
 const minSamples = Number(flagVal('--min-samples') ?? 5);
 const mode = flagVal('--mode');
-const consumed = new Set([String(minSamples), mode].filter(Boolean));
+
+const consumed = new Set([String(minSamples), mode, kind].filter(Boolean));
 const target = args.find((a) => !a.startsWith('--') && !consumed.has(a));
 
 if (!target || !mode) {

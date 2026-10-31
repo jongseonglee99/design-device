@@ -114,22 +114,27 @@ if (TOKEN_FILE.test(file) || declaredToken) {
 // ─── 2. 모드 해석 — 찾아 둔 설정 하나만 본다 ───
 // 경로가 어느 override 와도 안 맞으면 모드는 '미해결'이다.
 function resolveMode({ dir, conf }) {
-  for (const [glob, mode] of Object.entries(conf.overrides ?? {})) {
+  for (const [glob, val] of Object.entries(conf.overrides ?? {})) {
+    // 값이 객체면 { mode, kind } — 산출물 유형 (system/kinds.md, 2026-10-31). 문자열이면 지금처럼 모드만
+    const mode = typeof val === 'object' && val ? val.mode : val;
     // 최소 글롭: ** → 임의 경로, * → 구분자 제외
     const re = new RegExp('^' + glob
       .replace(/[.+^${}()|[\]\\]/g, '\\$&')
       .replace(/\*\*/g, '\u0000').replace(/\*/g, '[^/]*').replace(/\u0000/g, '.*') + '$');
-    if (re.test(relative(dir, file))) return mode;
+    if (re.test(relative(dir, file))) { resolvedKind = typeof val === 'object' && val ? val.kind ?? null : null; return mode; }
   }
+  resolvedKind = conf.kind ?? null;
   return conf.mode ?? null;
 }
+let resolvedKind = null;
 const mode = resolveMode(found);
+const kindArgs = resolvedKind ? ['--kind', resolvedKind] : [];
 const MODES = new Set(['tool', 'consumer', 'marketing', 'graphic']);
 
 // ─── 3. slop-scan — 모드가 확실할 때만 ───
 if (MODES.has(mode)) {
-  const r = run('slop-scan.mjs', [file, '--mode', mode]);
-  if (r && r.code === 1) { blocked = true; notes.push(`❌ 차단 등급 — ${rel} (모드 ${mode})\n${r.out.trim()}`); }
+  const r = run('slop-scan.mjs', [file, '--mode', mode, ...kindArgs]);
+  if (r && r.code === 1) { blocked = true; notes.push(`❌ 차단 등급 — ${rel} (모드 ${mode}${resolvedKind ? ` · 유형 ${resolvedKind}` : ''})\n${r.out.trim()}`); }
   else if (r && r.out.includes('⚠️')) notes.push(`⚠️ 정당화 요구 — ${rel} (모드 ${mode})\n${r.out.trim()}`);
 } else {
   // 조용히 건너뛴다. 단 침묵하지는 않는다 — 원장에 남겨 /design-review 가 센다.

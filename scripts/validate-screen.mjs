@@ -91,6 +91,23 @@ function check(file) {
     else if (found.length > 1) errs.push(`모드가 ${found.length}개 적혀 있다 — 산출물 단위로 **하나만** 고른다`);
   }
 
+  // ── 유형 (system/kinds.md, 2026-10-31) — 머리말에 있으면 유형별 필수 절을 본다. 없으면 지금과 같다 ──
+  const kindLine = /\|\s*\*\*유형\*\*\s*\|([^|]*)\|/.exec(t);
+  const kindOf = kindLine ? (kindLine[1].match(/app-screen|dashboard|event|landing|diegetic/) ?? [])[0] : null;
+  if (kindLine && !kindOf) errs.push('유형이 app-screen/dashboard/event/landing/diegetic 중 하나로 명시되지 않았다');
+  if (kindLine && (kindLine[1].match(/app-screen|dashboard|event|landing|diegetic/g) ?? []).length > 1) errs.push('유형이 여럿 적혀 있다 — 틀의 목록을 그대로 두지 말고 **하나만** 고른다');
+  if (kindOf === 'event') {
+    // 결정 브리프 7-10 A — 이벤트는 날짜가 상태다. 예고→진행→마감 임박→마감→발표→종료 각 단계의 버튼·문구·주인공 장치를 적는다
+    const tm = /^#{2,3}\s*.*시간 상태.*$/m.exec(t);
+    if (!tm) errs.push('유형 event 인데 `시간 상태` 절이 없다 — 예고·진행·마감 임박·마감·발표·종료 (system/kinds.md)');
+    else {
+      const body = t.slice(tm.index + tm[0].length).split(/^#{2}\s/m)[0];
+      const missing = [['예고', /예고/], ['진행', /진행/], ['마감 임박', /마감\s*임박/], ['마감', /마감(?!\s*임박)/], ['발표', /발표|열림|공개/], ['종료', /종료/]]
+        .filter(([, re]) => !re.test(body)).map(([n]) => n);
+      if (missing.length) errs.push(`시간 상태 절에 단계가 빠졌다 — ${missing.join(' · ')}`);
+    }
+  }
+
   // ── 절 존재 ──────────────────────────────────────────────────────────────
   for (const [name, re] of SECTIONS)
     if (!re.test(t)) errs.push(`\`${name}\` 절이 없다`);

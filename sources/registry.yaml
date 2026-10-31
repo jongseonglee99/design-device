@@ -11,7 +11,7 @@
 # 모드에 따라 열리는 레이어는 takes_for_mode 에 따로 적는다.
 
 version: 1
-updated: 2026-08-17
+updated: 2026-10-31
 
 sources:
   - id: awwwards
@@ -47,6 +47,42 @@ sources:
       유일한 한국 웹 소스. 대체 불가.
       L6를 받는 이유는 한국 기업 사이트의 IA 관행 자체가 관측 대상이기 때문.
       표현적 장식은 걸러서 본다.
+
+  # ─── 2026-10-31 추가 (결정 브리프 이벤트·모션 7-12 A+B) ───
+  # 조사에서 가장 쓸모 있던 두 종류. 유튜브는 구술 트랙 후보로만 둔다(국내 웹 모션 채널이 얇았다).
+  - id: skill-recipes
+    url: https://github.com/Leonxlnx/taste-skill
+    kind: system            # 모델이 읽는 디자인 스킬·레시피 레포 — 결정과 그 근거(실측)가 문서로 있다
+    auth: none
+    round: weekly
+    takes: [L5, L7, L8]     # 모션 어휘·대역, 이미지·연출 아이디어, 트레이드오프
+    drops: [L3]             # 색 값은 그 스킬의 취향이다
+    watch:                  # 라운드가 변경을 본다 (GitHub API — 최근 커밋·릴리스)
+      - Leonxlnx/taste-skill            # references/motion.md — Awwwards SOTD 99개 실측
+      - Nutlope/hallmark                # 주제 → 매크로 구조 표 · scroll-choreography
+      - emilkowalski/skills             # 빈도 4단 × 목적 6종 · RECIPES (MIT)
+      - kylezantos/design-motion-principles
+      - oil-oil/oil-motion
+      - ibelick/motion-primitives
+      - Jakubantalik/transitions.dev
+    note: |
+      스킬끼리 모션의 양을 두고 정반대 규칙을 낸다(hallmark 「reveal 하나」 vs taste-skill 「8개 미만 FAIL」).
+      규칙을 들이지 말고 관측과 근거만 가져온다 — 개수 규칙은 #50 과 반대다. 라이선스를 확인하고 인용한다.
+
+  - id: kr-event-pages
+    url: https://www.29cm.co.kr/
+    kind: rendered          # 국내 서비스의 실제 이벤트·기획전 페이지 — computed style · 레이어 구조 실측
+    auth: none
+    round: weekly
+    takes: [L0, L2, L5, L6, L7]   # 한국 시장 관습, 한글 조판(keep-all), 모션, 이벤트 구조, 재료
+    drops: []
+    targets:                # 시즌마다 바뀐다 — 라운드가 지금 열린 이벤트를 찾는다
+      - 29cm.co.kr/content/** (기획전 · 리미티드 오더)
+      - toss.tech/article/** (인터랙션 글)
+      - 배민 · 카카오 선물하기 · 무신사 · 올리브영 · 당근 시즌 캠페인 (웹으로 열리는 것만)
+    note: |
+      앱 안에서만 열리는 이벤트는 수집하지 못한다 — 그렇다고 적는다.
+      29CM 「29 리미티드 오더」 실측: 시간이 첫 화면 · 고정 하단 행동 · 보상과 조건 분리 · 전역 keep-all · 애니메이션 0개(무게는 사진·서체).
 
   - id: dribbble
     url: https://dribbble.com/

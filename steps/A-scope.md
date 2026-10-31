@@ -56,6 +56,10 @@ node <장치>/scripts/emit-tokens.mjs --detect --target apps/desktop   # 하위 
 `rn`(`theme.ts` 객체). 그 밖의 스택은 **기록만 하고 토큰은 사람이 옮긴다.**
 레포 11개 전수 조사에서 실제로 만난 모양이 둘이기 때문이고, 나머지는 추측이 된다.
 
+0. **「무엇을 만드나요?」 — 유형을 먼저 정한다** (2026-10-31, `<장치>/system/kinds.md`): `app-screen` / `dashboard` / `event` / `landing` / `diegetic`.
+   모드는 유형의 기본값에서 나온다. **짝꿍미션 사전 신청 페이지가 이것 없이 만들어져 `tool` 로 읽혔다** — 요청받은 연출이 막히고, 이벤트로서 비어 있는 것(날짜·보상·공유)은 아무도 묻지 않았다.
+   유형이 `event` 면 같이 묻는다 — **무슨 날 · 누구 · 어디서 · 언제까지**, 그리고 **재료**(캐릭터·사진·일러스트 — AI 이미지·공개 일러스트도 쓴다, 사용자 2026-10-31).
+   `design.config.json` 의 `overrides` 에는 `{ "mode": "marketing", "kind": "event" }` 처럼 객체로 적는다.
 1. **모드를 정한다**: `tool` / `consumer` / `marketing` / `graphic` (`system/invariants.md` Ⅱ).
    요청에서 자명하지 않으면 **묻는다.** 모드는 산출물 단위지 프로젝트 단위가 아니다 —
    한 서비스 안에서 앱 화면은 `consumer`, 랜딩은 `marketing`, 관리자는 `tool`일 수 있다.
