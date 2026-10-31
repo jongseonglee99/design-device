@@ -61,6 +61,10 @@ async function probe(s) {
     });
     const ms = Date.now() - t0;
     if (r.ok) return { ...s, state: 'ok', status: r.status, ms };
+    // ★ 봇 챌린지는 429 로 와도 차단이다 (2026-W44 첫 로컬 라운드 — siteinspire 가 `x-vercel-mitigated: challenge` 429 를 줬는데
+    // 「지연 — 재시도하면 열린다」 로 분류해 수집 가능으로 판정했고, 실제 수집은 0건이었다). 재시도로 풀리지 않는다.
+    const mitigated = r.headers.get('x-vercel-mitigated') || r.headers.get('cf-mitigated') || '';
+    if (/challenge/i.test(mitigated)) return { ...s, state: 'forbidden', status: r.status, ms, detail: `봇 챌린지 (${mitigated})` };
     // 429 는 차단이 아니라 속도 제한이다. 재시도로 풀린다 — 구분해서 적는다.
     if (r.status === 429) return { ...s, state: 'throttled', status: 429, ms };
     if (r.status === 401 || r.status === 403) return { ...s, state: 'forbidden', status: r.status, ms };

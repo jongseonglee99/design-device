@@ -57,6 +57,9 @@ const WEIGHTS = {
 
   // ─── 2026-10-30 신설 (승인 #55 A) ───
   IA9: ['block', 'warn',  'info',  null],    // 메뉴 항목마다 설명문 (대화체 부제)
+
+  // ─── 2026-10-31 신설 (승인 #59 A) ───
+  T8:  ['block', 'block', 'warn',  'warn'],  // vw 전용 글자 크기 — 확대에 반응하지 않는다
 };
 
 // ─── 기계 상한 (승인 #38 D, 2026-10-12) ────────────────────────────────────
@@ -471,6 +474,30 @@ function collectPerFile(acc, text, rel, ext) {
       add('T7', `측정폭 ${ch}ch — 권장 45~75ch 밖이다`, m[0],
         ch < 45 ? '너무 좁아 줄이 자주 끊긴다' : '너무 넓어 다음 줄 시작을 놓친다');
     }
+  }
+
+  // T8 — 화면 너비(vw)만으로 정한 글자 크기 (승인 `#59 A`, 2026-10-31).
+  // vw 는 브라우저 글자 크기 설정에 반응하지 않는다(WCAG 1.4.4 · 실패 기법 F94). 큰 모니터 기준 아트보드에서 멋있던 글자가
+  // 노트북에서 작아진다 — W44 라운드 실측: awwwards A24 본문 계산값 8.3~10.7px, gdweb 네 곳.
+  // 통과: clamp 의 하한 · max() 안 · calc() 안에 rem·em(·px 하한) 이 있으면 바닥이 있다. 토큰(--fs-*·--text-* 등)으로 적어도 같다.
+  // 토큰 이름에 `size`·`display`·`body` 는 넣지 않는다 — A24 의 `--size-container-fluid: 100dvw` 는 레이아웃 폭이다(첫 실측 오탐)
+  const VP = /-?[\d.]+(?:vw|vh|vmin|vmax|svw|lvw|dvw)\b/i;
+  const floorOk = (v) => {
+    const t = v.trim().toLowerCase();
+    const cl = t.match(/^clamp\(\s*([^,]+),/);
+    if (cl) return /rem|em|px/.test(cl[1]);
+    if (/^max\(/.test(t)) return /rem|em|px/.test(t);
+    if (/^calc\(/.test(t)) return /rem|em/.test(t);
+    return false;
+  };
+  const FS_DECL = /(?:^|[;{\s])(font-size|--(?:fs|font-size|text|type|h[1-6]|title|heading)(?:-[\w-]*)?)\s*:\s*([^;}\n]+)/gi;
+  const t8 = new Set();
+  for (const m of src.matchAll(FS_DECL)) {
+    const val = m[2].trim();
+    if (!VP.test(val) || floorOk(val)) continue;
+    if (t8.has(val)) continue; t8.add(val);
+    add('T8', `글자 크기가 화면 너비에만 묶였다 — ${m[1]}: ${val.slice(0, 40)}`, undefined,
+      'clamp(1rem, …vw, …rem) 처럼 rem 하한을 둔다 — 브라우저 글자 확대(200%)에 반응해야 한다 (WCAG 1.4.4)');
   }
 
   // G4 — 이미지가 있는 그리드의 `1fr` (hallmark 게이트 50).

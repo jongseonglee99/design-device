@@ -149,7 +149,7 @@ overflow-wrap: anywhere;   /* 짝으로 반드시 함께 — 단독 사용 시 �
 
 ## 11. 컴포넌트
 
-`${CLAUDE_PLUGIN_ROOT}/system/invariants.md` Ⅲ-1 (과도기 복사 경로: `design-kit/system/invariants.md`): shadcn/radix 미사용. 자체 3계층.
+`${CLAUDE_PLUGIN_ROOT}/system/invariants.md` Ⅲ-1 (과도기 복사 경로: `design-kit/system/invariants.md`): 3계층(프리미티브 · 크롬 · 화면). shadcn/radix 는 써도 된다 — 기본 토큰을 덮을 의무도 없다 (2026-10-31 `#58 A`).
 ```
 components/ui/       프리미티브
 components/shell/    앱 크롬

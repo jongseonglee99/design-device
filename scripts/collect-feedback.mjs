@@ -156,7 +156,11 @@ if (existsSync(pickPath)) {
     // 시안 판정이 아니라서 「시안·선택이 없다」 로 ✗ 처리되고 있었는데, **가장 값진 종류**다: 사용자 말이 그대로 있고
     // 세션이 「규칙으로」 · 「장치에(안티패턴 후보)」 까지 적어 두었다. 층 B 가 아니라 따로 모은다 → `products/field-findings.md`
     if (/실사용/.test(id) || (row['사용자 말'] && !row['선택'])) {
-      if (!ledger.seenFields.includes(id)) fields.push({ id, row });
+      // 위임은 실사용 지적이 아니다 (2026-W44 — *"홈 큰 시계는 너의 추천대로 갈게"* 가 ⑦ 로 들어왔다). 보았다고만 적는다
+      const delegatedField = /(제안|추천)\s*(으로|대로)|알아서|맡길|맡긴|맡겨|(너|네)가\s*골라/.test(row['사용자 말'] ?? '');
+      if (!ledger.seenFields.includes(id)) {
+        if (delegatedField) ledger.seenFields.push(id); else fields.push({ id, row });
+      }
       continue;
     }
     // 타당성 요건 (system/taste-layer-b.md) — 어긴 것을 **적어서** 보고한다. 조용히 버리지 않는다.
