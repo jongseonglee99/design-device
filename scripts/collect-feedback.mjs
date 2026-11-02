@@ -141,16 +141,53 @@ const fields = [];
 const pickPath = join(REPO, 'docs', 'design-ledger.md');
 if (existsSync(pickPath)) {
   const text = readFileSync(pickPath, 'utf8').replace(/<!--[\s\S]*?-->/g, '');
+  // ★ 「판정 대기」 항목에 나중에 붙는 판정 (2026-11-02 — 로컬 라운드 W45 가 찾음).
+  // control_tower 10-30: S09·S13·ICON 은 머리가 「(사용자 판정 대기)」 였고 확신 칸이 「세션 추천」 이라 ⊘(위임)로 보고 seen 에 넣었다.
+  // 사용자는 그날 오후 같은 원장에 「### 사용자 판정 (2026-10-30) — S09 · S13 · ICON」 으로 직접 골랐는데(셸 B — *"메뉴바가 불필요하게
+  // 공간을 차지하는건 최대한 지양해야 해"*) 회수기는 seen 이라 다시 보지 않았다. 판정 대기는 위임이 아니라 **아직 판정 전**이다.
+  const answeredSecs = [];
+  {
+    const heads = [...text.matchAll(/^###\s*사용자 판정\s*\(([^)]*)\)([^\n]*)$/gm)];
+    for (const h of heads) {
+      const start = h.index + h[0].length;
+      const rest = text.slice(start);
+      const end = rest.search(/^#{2,3}\s/m);
+      const body = end < 0 ? rest : rest.slice(0, end);
+      const rows = {};
+      for (const m of body.matchAll(/^\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|\s*$/gm)) if (!/^-+$/.test(m[1]) && m[1].trim()) rows[m[1].trim()] = m[2].trim();
+      const codes = new Set((h[2].match(/\b[A-Z]{1,5}\d{0,3}(?:-\d+)?\b/g) ?? []));
+      answeredSecs.push({ at: h.index, codes, rows });
+    }
+  }
+  const layerBText = (() => { try { return readFileSync(join(ROOT, 'system', 'taste-layer-b.md'), 'utf8'); } catch { return ''; } })();
+  let cursor = 0;
   for (const blk of text.split(/^## /m).slice(1)) {
+    const blkAt = text.indexOf('## ' + blk.split('\n')[0], cursor); cursor = blkAt + 3;
     const id = blk.split('\n')[0].trim();
     if (!/^P-\d{4}-\d{2}-\d{2}-/.test(id) || /YYYY/.test(id)) continue;   // 틀의 예시는 건너뛴다
-    if (ledger.seenPicks.includes(id)) continue;
+    const pending = /판정 대기/.test(id);
+    const idCodes = [...(id.match(/P-\d{4}-\d{2}-\d{2}-([^\s(]+)/)?.[1] ?? '').matchAll(/([A-Z]{1,5}\d{0,3})(?:-(\d+))?/g)]
+      .map((m) => [m[1], m[2] ? `${m[1]}-${m[2]}` : m[1]]);
+    const inBlock = (a) => a.at > blkAt && a.at < blkAt + 3 + blk.length;
+    const ans = pending ? answeredSecs.find((a) => (inBlock(a) && !a.codes.size) || idCodes.some(([b, f]) => a.codes.has(b) || a.codes.has(f))) : null;
+    const cleanId = id.split(/\s+\(/)[0].trim();
+    if (pending && !ans) continue;                                   // 아직 판정 전 — seen 에 넣지 않는다
+    if (ledger.seenPicks.includes(id) && !(ans && !layerBText.includes(cleanId))) continue;
     const row = {};
     for (const m of blk.matchAll(/^\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|\s*$/gm)) {
       if (/^-+$/.test(m[1]) || !m[1].trim()) continue;
       // 「시안 A (가 · `01-ask.html`)」 처럼 칸 이름에 설명을 붙여도 「시안 A」 다 (Seemilar 실측)
       const k = m[1].trim().replace(/^(시안\s*[A-Z])\b.*$/, (_, a) => a.replace(/\s+/, ' '));
       row[k] = m[2].trim();
+    }
+    if (ans) {   // 나중에 붙은 판정이 선택·왜·확신을 정한다. 항목 쪽의 「세션 추천」 칸은 판정자가 아니다
+      const code = idCodes.map(([b, f]) => [f, b]).flat().find((c) => ans.rows[c] !== undefined);
+      const pickTxt = code ? ans.rows[code] : (ans.rows['선택'] ?? Object.entries(ans.rows).find(([k]) => idCodes.some(([b]) => k.startsWith(b) && !/왜/.test(k)))?.[1]);
+      if (pickTxt) row['선택'] = pickTxt;
+      row['왜'] = (code && ans.rows[`${code} 왜`]) ?? ans.rows['왜'] ?? row['왜'];
+      if (ans.rows['확신']) row['확신'] = ans.rows['확신']; else row['확신'] = '사용자 판정';
+      row['판정자'] = '사용자';
+      delete row['세션 추천'];
     }
     // ★ ⑦ **실사용 지적** — 구현된 화면을 쓰다가 사용자가 한 말 (2026-10-30 — control_tower F-1~F-4).
     // 시안 판정이 아니라서 「시안·선택이 없다」 로 ✗ 처리되고 있었는데, **가장 값진 종류**다: 사용자 말이 그대로 있고
@@ -191,7 +228,7 @@ if (existsSync(pickPath)) {
     if (!variants.length && (shownOpts.length > 1 || /\.html|^[A-Z0-9]\b/.test(row['선택'] ?? ''))) problems.push('②′ 시안 설명 칸이 없다 — 제시 순서·선택으로만 안다 (보류)');
     else if (!variants.length) problems.push('② 시안이 적혀 있지 않다');
     // 「왜」 칸이 차 있어도 **스스로 이유가 없다고 적은** 것은 없는 것이다 — 인용 밖에서만 본다(사용자 말 「이유가 전혀 없음」 은 이유다) (Seemilar 「(이유 메모 없음)」 · dogu 「이유를 따로 말하지 않았다」 — 2026-10-30)
-    if (!row['왜'] || /^\*?\*?한 줄/.test(row['왜']) || /이유[^.。]{0,8}(없음|말하지 않았다)/.test(row['왜'].replace(/["“][^"”]*["”]/g, ''))) problems.push('③ 「왜」가 없다 — **회수하지 않는다**');
+    if (!row['왜'] || /^\*?\*?한 줄/.test(row['왜']) || (/이유[^.。]{0,8}(없음|말하지 않았다)/.test(row['왜'].replace(/["“][^"”]*["”]/g, '')) || /^\(?\s*말하지 않(음|았다)\s*\)?$/.test(row['왜'].trim()))) problems.push('③ 「왜」가 없다 — **회수하지 않는다**');
     if (!/^(tool|consumer|marketing|graphic)$/.test(row['모드'] ?? '')) problems.push('④ 모드가 명시되지 않았다');
     if ((variants.length > 1 || shownOpts.length > 1) && (!row['제시 순서'] || /^A\s*·\s*B\s*·\s*C$/.test(row['제시 순서']))) problems.push('⑤ 제시 순서를 섞지 않았다(또는 안 적었다) — 위치 효과를 통제하지 못한다');
     const invalid = problems.some((p) => /^(②|③)(?!′)/.test(p));   // ②③ 은 무효(시안·「왜」 없음), ①④⑤ 는 보류
@@ -208,7 +245,7 @@ if (existsSync(pickPath)) {
     if (/위임/.test(row['판정자'] ?? '')) delegated = '판정자: 위임';
     // 확신·선택 칸이 위임을 말하는 경우 (Seemilar 「위임(사용자 판정 아님 …)」 · 「**Claude 가 고름**」, control_tower 「세션 추천」)
     else if (/시안\s*판정\s*아님/.test(row['확신'] ?? '')) delegated = '시안 판정이 아니라 사용자 지시 — 층 B 에 넣지 않는다';
-    else if (/위임|세션\s*추천/.test(row['확신'] ?? '') || /Claude\s*가\s*고름|세션\s*추천/.test(row['선택'] ?? '')) delegated = '확신·선택 칸: 위임 · 세션 추천';
+    else if (/위임|세션\s*추천/.test(row['확신'] ?? '') || /Claude\s*가\s*고름|세션\s*추천으로|^\W*세션\s*추천/.test(row['선택'] ?? '')) delegated = '확신·선택 칸: 위임 · 세션 추천';
     else if (/장치/.test(row['판정자'] ?? '')) delegated = '판정자: 장치 — 사용자에게 묻지 않은 결정';
     else if (why && DELEGATE.test(why)) delegated = `위임 문구 — 「${why.match(DELEGATE)[0]}」`;
     else if (why && !invalid && !quoted) delegated = '「왜」에 사용자 말(따옴표 인용)이 없다 — 적힌 이유는 장치의 것이다';
@@ -275,6 +312,8 @@ if (args.includes('--ack')) {
   const keep = picks.filter((pk) => !pk.invalid && !pk.delegated);
   // ⊘ 는 고쳐서 다시 올라올 것이 없다 — 보았다고만 적는다
   ledger.seenPicks.push(...picks.filter((pk) => pk.delegated).map((pk) => pk.id));
+  // 사용자가 골랐지만 이유를 말하지 않은 판정 — 고쳐서 다시 올라올 것이 없다. 매번 ✗ 로 다시 뜨지 않게 본 것으로 적는다
+  ledger.seenPicks.push(...picks.filter((pk) => pk.invalid && pk.row['판정자'] === '사용자').map((pk) => pk.id));
   if (keep.length) {
     const lb = join(ROOT, 'system', 'taste-layer-b.md');
     let body = readFileSync(lb, 'utf8').replace(/\n_아직 없다\._[^\n]*\n/, '\n');

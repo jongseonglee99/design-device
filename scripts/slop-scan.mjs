@@ -368,7 +368,8 @@ function collectPerFile(acc, text, rel, ext) {
   // 이제: 계속 움직이는 것이 있는데 ① 멈춤 수단도 ② 움직임 줄이기 대응도 없으면 M4 ❌, ②만 있으면 M4s(tool ❌ · 그 밖 ⚠️).
   // 로딩 스피너·스켈레톤은 면제 — 「기다리는 중」 이라는 정보다.
   {
-    const SPIN = /spin|loader|loading|skeleton|shimmer|progress|busy|pending/i;
+    // 로딩 표시 이름 — W45 라운드 실측 오탐 셋: dogu `.fr-wait`(로딩 막대) · Tailwind `animate-pulse`(스켈레톤, 쓰이지 않아도 번들에 있다)
+    const SPIN = /spin|loader|loading|skeleton|shimmer|progress|busy|pending|wait|indeterminate|placeholder|animate-pulse|animate-spin/i;
     const loops = [];
     for (const m of src.matchAll(/([^{}@]+)\{([^{}]*\binfinite\b[^{}]*)\}/gi)) {
       const sel = m[1].trim(), body = m[2];
@@ -378,7 +379,7 @@ function collectPerFile(acc, text, rel, ext) {
     }
     for (const m of src.matchAll(/iterations\s*:\s*Infinity|repeat\s*:\s*-1/g)) loops.push(`스크립트 ${m[0].replace(/\s+/g, '')}`);
     if (loops.length) {
-      const reduceOk = /prefers-reduced-motion/i.test(src);
+      const reduceOk = /prefers-reduced-motion/i.test(src);   // JS matchMedia('(prefers-reduced-motion…)') · gsap.matchMedia 도 같은 문자열을 담는다
       const stopOk = /animation-play-state\s*:\s*paused|\.pause\(\)|\.cancel\(\)|\.kill\(\)/i.test(src)
         && /<button[^>]*>[^<]*(멈춤|멈추|정지|일시\s*정지|pause|stop)|aria-label\s*=\s*["'][^"']*(멈춤|멈추|정지|pause|stop)/i.test(src);
       const ex = [...new Set(loops)].slice(0, 3).join(' · ');
