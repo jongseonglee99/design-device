@@ -128,6 +128,22 @@ function check(file) {
     }
   }
 
+  // ── 곤란한 내용 — 많을 때 · 길 때 · 없을 때 (승인 `#65 C`, 2026-11-02) ──
+  // 절이 없으면 ⚠️ (이 절 전에 쓴 문서가 빌드 AC 에서 갑자기 막히지 않게 — 채널 예산 표와 같은 급). 절이 있으면 세 칸 모두 답해야 한다.
+  const hardM = /^#{2,3}\s*.*곤란한\s*내용.*$/m.exec(t);
+  if (!hardM) warns.push('`곤란한 내용` 절이 없다 — 많을 때 · 길 때 · 없을 때 (틀 §3, 승인 `#65 C`)');
+  else {
+    const body = t.slice(hardM.index + hardM[0].length).split(/^#{2,3}\s/m)[0];
+    for (const name of ['많을 때', '길 때', '없을 때']) {
+      const row = body.split('\n').find((l) => l.includes('|') && new RegExp(`\\*\\*${name}\\*\\*`).test(l));
+      if (!row) { errs.push(`곤란한 내용 \`${name}\` 행이 없다`); continue; }
+      const cells = row.split('|').slice(2, -1).map((c) => c.trim());
+      const answer = cells[cells.length - 1] ?? '';
+      if (!answer) errs.push(`곤란한 내용 \`${name}\` 의 「어떻게 보여주나」 가 비어 있다 — 해당 없으면 \`해당 없음 — <이유>\``);
+      else if (NA.test(answer) && !NA_WITH_REASON.test(answer)) errs.push(`곤란한 내용 \`${name}\` 이 「해당 없음」인데 이유가 없다`);
+    }
+  }
+
   // ── 위계 채널 예산 — 0 이거나 3 이상 (decision-logic §3) ─────────────────
   const hierBody = sectionBody(t, SECTIONS[3][1]);
   if (hierBody) {

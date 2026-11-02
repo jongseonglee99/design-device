@@ -27,7 +27,7 @@
 | `app-screen` | consumer · tool | 상시 | R1 | 상태 5종 | 세 레포 |
 | `dashboard` | tool | 상시 | R1 | 상태 5종 · 데이터 없음 | control_tower |
 | **`event`** | marketing (+ consumer 정서) | **기간 한정** | 아래 표 | **시간 상태 표** · 무슨 날·누구·어디서 · 공유 · 유의사항 | dogu 짝꿍미션 |
-| `landing` | marketing | 상시 | R2 섹션당 1 | CTA 히어로 안 (6회차 B02 확실) | seemilar |
+| `landing` | marketing | 상시 | R2 섹션당 1 | CTA 히어로 안 (6회차 B02 확실) · 제목은 숫자 대신 건네는 말(`tone-card-event.md` E5, `#70 B`) | seemilar |
 | `diegetic` 사물형 | consumer | 기간 한정 · 상시 | 상호작용이 본체 | 「누를 수 있다는 걸 아나」 | — (짝꿍 어드벤트 판) |
 
 기획전 · 에디토리얼 · 이메일 · 소셜 카드 · 포스터 · 모션 조각 · 온보딩은 **산출물이 생기면 그때 카드를 만든다**(인스턴스 없는 규칙을 만들지 않는다, D-4 · D-23).

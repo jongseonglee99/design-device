@@ -21,8 +21,15 @@ const SNAP = process.env.DOGU_SNAPSHOT ?? join(homedir(), '.design-device', 'sna
 const REPOS = [
   { name: 'control_tower', dir: join(PROJ, 'control_tower'), ledger: join(PROJ, 'control_tower', 'docs', 'design-ledger.md'), rev: '--all' },
   { name: 'Seemilar_worktool', dir: join(PROJ, 'Seemilar_worktool'), ledger: join(PROJ, 'Seemilar_worktool', 'docs', 'design-ledger.md'), rev: '--all' },
-  { name: 'dogu_worktool', dir: join(PROJ, 'dogu_worktool'), ledger: join(SNAP, 'docs', 'design-ledger.md'), rev: 'origin/main' },
 ];
+// 이 맥에서 작업하지 않는 레포 — harness/remote-repos.json (dogu · 다른 맥의 livewith 등). 원장은 스냅숏, 커밋은 그 git 에서 원격 기본 브랜치로
+try {
+  const { remoteRepos } = await import('./remote-snapshot.mjs');
+  for (const r of remoteRepos()) {
+    const snap = r.name === 'dogu_worktool' ? SNAP : r.snap;
+    REPOS.push({ name: r.name, dir: r.git, ledger: join(snap, 'docs', 'design-ledger.md'), rev: r.ref });
+  }
+} catch { /* 목록이 없으면 이 맥의 레포만 */ }
 const args = process.argv.slice(2);
 const now = Date.now();
 const days = (iso) => Math.max(0, Math.floor((now - new Date(iso).getTime()) / 864e5));
@@ -75,7 +82,8 @@ function ledgerPending(path) {
 const DESIGN_PATHS = ['prototypes', 'docs/screens', 'docs/design', 'docs/design-ledger.md', 'docs/UI_GUIDE.md', 'design', 'design-export', 'design-handoff', 'reference/design-system', 'design.config.json',
   ':(glob)**/*.css', ':(glob)**/*.scss'];   // 구현된 화면의 스타일도 디자인 작업이다 (dogu 는 src/**/*.css 로만 일한다 — 0건으로 보이던 것)
 function weekWork(r) {
-  if (!existsSync(join(r.dir, '.git'))) return null;
+  // 작업 트리(.git) 또는 읽기 전용 미러(맨 git 폴더 — remote-snapshot) 둘 다 받는다
+  if (!existsSync(join(r.dir, '.git')) && !existsSync(join(r.dir, 'HEAD'))) return null;
   const log = git(r.dir, ['log', r.rev, '--since=7.days', '--format=%ad\t%s', '--date=short', '--', ...DESIGN_PATHS]);
   const lines = log ? [...new Set(log.split('\n'))] : [];
   return { commits: lines.length, recent: lines.slice(0, 4).map((l) => { const [d, s] = l.split('\t'); return { date: d, subject: s.slice(0, 70) }; }) };
@@ -110,7 +118,7 @@ else if (args.includes('--summary')) {
   if (unpublished.length) { console.log(`\n■ 게시 안 된 판정 페이지 ${unpublished.length}개 — Artifact 로 게시하고 harness/published.json 에 링크를 적는다`); for (const f of unpublished) console.log(`  ${f}`); }
   console.log('\n■ 시안 판정 대기 (대상 레포 원장)');
   for (const r of repos) {
-    if (r.waiting === null) { console.log(`  ${r.name} — 원장을 읽지 못했다`); continue; }
+    if (r.waiting === null) { console.log(`  ${r.name} — 판정 원장이 아직 없다 (이 레포에서 장치로 시안을 고른 적이 없다)`); continue; }
     if (!r.waiting.length) { console.log(`  ${r.name} — 없음`); continue; }
     const oldest = r.waiting.reduce((a, b) => (a.date < b.date ? a : b));
     console.log(`  ${r.name} — ${r.waiting.length}건 · 가장 오래된 ${oldest.code} (${oldest.date}, ${days(oldest.date)}일)`);

@@ -9,8 +9,13 @@
 node <장치>/scripts/gate.mjs validate-screen docs/screens/
 node <장치>/scripts/gate.mjs slop-scan prototypes --mode <모드>
 node <장치>/scripts/gate.mjs contrast-check prototypes/tokens.css
-node <장치>/scripts/gate.mjs measure-render prototypes --target . --shots .design-device/shots
+node <장치>/scripts/gate.mjs measure-render prototypes --target . --shots .design-device/shots --stress
 ```
+
+`--stress` (승인 `#65 C`) — 다 잰 뒤 금액·개수를 10억 단위로, 표·목록 속 이름을 긴 한글 복합명사로 **바꿔 넣고 한 번 더** 잰다.
+걸리면 ❌ — 말줄임·줄바꿈·접기로 고친다(화면 문서 §3 「곤란한 내용」 에 적은 대로). 바뀔 일 없는 고정 문구에는 `data-stress-ignore`.
+바꿔 넣은 화면도 `-stress.png` 스크린숏으로 남는다.
+**㉥ 뼈대 ⚠️** (승인 `#64 B`) — 「모든 줄에서 비어 있는 칸」 · 「위아래 덩어리의 왼쪽 시작선 어긋남」 을 보고한다. 막지 않는다 — 고치거나, 의도면 이유를 적는다.
 
 ## ★ 기본 점검 — 사람에게 보이기 전에 **눈으로** 본다 (2026-10-12)
 
@@ -27,6 +32,7 @@ node <장치>/scripts/gate.mjs measure-render prototypes --target . --shots .des
 | 이미지의 중요한 부분을 UI 가 가리지 않는다 | 생존 지수 카드가 데이비드의 얼굴을 덮음 |
 | 정체 모를 요소가 없다 — 빈 자리 표시·회색 줄무늬·깨진 이미지 | 면담 시안 왼쪽의 회색 줄 블록 |
 | 화면 안에 **가짜 기기 테두리·상태바(9:41)를 또 그리지 않는다** | 390px 화면 안에 폰 테두리를 그려 가장자리가 잘림 |
+| **제목이 뜻 중간에서 끊기지 않는다** — 「세 / 번의 저녁」 처럼 한 덩어리인 말이 두 줄로 갈라지면 묶는다 (`#69 A`, `signals/hangul-typesetting.md` 1) | 7회차 공연 안내 제목이 넓은 화면 네 칸 배치에서 「세 / 번의 저녁」 |
 
 **하나라도 걸리면 고치고 다시 잰다.** 「사람이 보고 말해 주겠지」 는 없다 — 기본이 깨진 시안을 보이는 순간
 사람의 판정은 디자인이 아니라 결함에 소모된다(D 게이트가 존재하는 이유와 같다).

@@ -46,7 +46,7 @@ python3 -m http.server 4173 -d <빌드 폴더>      # 예: apps/desktop/out/rend
 ```bash
 for f in <제품>/render-states/0*.js; do
   node <장치>/scripts/gate.mjs measure-render \
-    --url <paths.render> --target . --inject "$f"
+    --url <paths.render> --target . --inject "$f" --stress
 done
 node <장치>/scripts/gate.mjs contrast-check <paths.tokens>
 node <장치>/scripts/gate.mjs slop-scan <소스 폴더> --mode <모드>

@@ -22,6 +22,12 @@
 //   ㉣ 비텍스트 대비   체크박스·라디오·스위치의 테두리/바탕 · 아이콘만 있는 버튼의 아이콘 — 3:1
 //   ㉤ 배치 무결성     **가려진 글자 · 잘린 글자 · 서로 겹친 글자** — 기본이다 (2026-10-12 사용자:
 //                    "글씨 위치 깨짐, 도형 어긋남 등 6개 시안 곳곳에서 기본이 지켜지지 않았다. 앞으론 절대 안 된다")
+//   ㉥ 뼈대(⚠️)       **모든 줄에서 비어 있는 칸** · **세로로 쌓인 블록의 왼쪽 시작선 어긋남** (승인 `#64 B`, 2026-11-02) —
+//                    블라인드 비교에서 장치 쪽이 진 이유가 글자가 아니라 이런 배치였다. 계산으로 확실히 가려지는 둘만 넣었다
+//                    (한쪽 쏠림·빈 가운데는 일부러 비운 여백과 구별되지 않는다 — 0.4.4 가리개의 교훈). ⚠️ 라서 exit 에 넣지 않는다
+//   --stress          **곤란한 내용으로 바꿔 넣고 다시 잰다** (승인 `#65 C`) — 금액·개수는 10억 단위로, 표·목록 속 짧은 이름은
+//                    긴 한글 복합명사로. 그 뒤 ㉤ 와 넘침이 그대로 판정한다(❌). 말줄임을 해 둔 칸은 잘림으로 세지 않는다.
+//                    고정 문구라 바뀔 일이 없는 곳은 `data-stress-ignore` 를 단다
 //   --shots <폴더>    폭마다 스크린숏을 남긴다 — 기계가 못 보는 어긋남은 **눈으로** 본다(D 단계가 열게 한다)
 //                    (2026-10-12 — 불변항 Ⅰ-1 이 이미 「비텍스트 UI 요소 3:1」 을 요구하는데 재지 않았다)
 // `axe`·키보드·포커스트랩은 넣지 않았다 — 우리 축이 아니고, 게이트를 한 번에 늘리면
@@ -45,6 +51,7 @@
 // 사용:
 //   node scripts/measure-render.mjs <파일|디렉토리> [--target <레포>] [--json]
 //   node scripts/measure-render.mjs prototypes --widths 320,414
+//   node scripts/measure-render.mjs prototypes --stress          (곤란한 내용으로 바꿔 넣고 한 번 더)
 // 종료코드: 0 = 통과 또는 미측정 · 1 = 실제 위반 · 2 = 사용법
 
 import { createRequire } from 'node:module';
@@ -58,6 +65,7 @@ const argv = process.argv.slice(2);
 const flag = (n, d) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : d; };
 const asJson = argv.includes('--json');
 const shotsDir = flag('--shots') ? resolve(flag('--shots')) : null;
+const stress = argv.includes('--stress');
 if (shotsDir) { const { mkdirSync } = await import('node:fs'); mkdirSync(shotsDir, { recursive: true }); }
 const target = resolve(flag('--target', process.cwd()));
 // ★ **측정 폭은 제품이 정한다** (2026-10-12 수정 — 실측 오탐 2건).
@@ -553,6 +561,100 @@ const LAYOUT_AUDIT = () => {
   return out.filter((o) => { const k = o.what + o.at + o.by; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 30);
 };
 
+// ─── ㉥ 뼈대 — 늘 빈 칸 · 시작선 어긋남 (승인 `#64 B`, 2026-11-02) — ⚠️ ────────────
+// 사용자 블라인드 판정에서 진 이유(2026-10-12~13): 「모든 줄에서 늘 비어 있는 칸」 · 「위쪽 메뉴와 아래 내용의 왼쪽 시작선이 안 맞는다」.
+//   ① 늘 빈 칸 — 본문 줄 3개 이상인 표에서 어떤 칸이 **모든 줄**에서 비었다(글자·이미지·입력·아이콘 없음)
+//   ② 시작선 — 같은 부모 안에서 세로로 쌓인 넓은 블록 둘의 **잉크 왼쪽**(글자가 그려진 자리 · 테두리나 바탕이 보이는 상자)이 6~40px 어긋난다. 덩어리(자식 둘 이상)끼리만 · 같은 종류의 줄끼리는 뺀다.
+//      둘 중 하나가 자기 테두리·바탕을 가진 상자면 뺀다(카드 안 들여쓰기는 의도다) · 가운데·오른쪽 정렬, 목록·인용 들여쓰기도 뺀다
+const FRAME_AUDIT = () => {
+  const out = [];
+  const vis = (el) => { const cs = getComputedStyle(el); if (cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity === 0) return false; const r = el.getBoundingClientRect(); return r.width > 1 && r.height > 1; };
+  const label = (el) => { const cls = typeof el.className === 'string' && el.className.trim() ? '.' + el.className.trim().split(/\s+/)[0] : ''; const t = (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 20); return `${el.tagName.toLowerCase()}${cls}${t ? ` "${t}"` : ''}`; };
+  const filled = (cell) => (cell.textContent || '').trim() !== '' || cell.querySelector('img,svg,canvas,video,input,select,textarea,button,[role="img"],[style*="background-image"]');
+  // ① 늘 빈 칸
+  for (const tb of document.querySelectorAll('table')) {
+    if (!vis(tb) || tb.closest('[data-rank-ignore]')) continue;
+    const rows = [...(tb.tBodies.length ? [...tb.tBodies].flatMap((b) => [...b.rows]) : [...tb.rows].slice(1))].filter(vis);
+    if (rows.length < 3) continue;
+    const n = Math.max(...rows.map((r) => r.cells.length));
+    const head = tb.tHead?.rows[0];
+    for (let c = 0; c < n; c++) {
+      if (rows.every((r) => r.cells.length === n && !filled(r.cells[c]))) {
+        const h = head?.cells[c]?.textContent.trim();
+        out.push({ kind: 'frame', what: '모든 줄에서 비어 있는 칸', at: `${label(tb)} ${c + 1}번째 칸${h ? ` 「${h}」` : ''}`, by: `본문 ${rows.length}줄 전부` });
+      }
+    }
+  }
+  // ② 시작선 어긋남
+  const transparent = (c) => !c || c === 'transparent' || /rgba\([^)]*,\s*0\)$/.test(c);
+  const framed = (el) => { const cs = getComputedStyle(el); return !transparent(cs.backgroundColor) || cs.backgroundImage !== 'none' || cs.boxShadow !== 'none' || (parseFloat(cs.borderLeftWidth) > 0 && !transparent(cs.borderLeftColor) && cs.borderLeftStyle !== 'none'); };
+  const inkLeft = (root) => {
+    let best = Infinity, k = 0;
+    const walk = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+    for (let nd = walk.currentNode; nd && k < 400; nd = walk.nextNode(), k++) {
+      if (nd.nodeType === 3) { if (!nd.textContent.trim()) continue; const rg = document.createRange(); rg.selectNodeContents(nd); for (const r of rg.getClientRects()) if (r.width > 2 && r.height >= 8) best = Math.min(best, r.left); }
+      else if (nd !== root && vis(nd) && (framed(nd) || /^(IMG|SVG|CANVAS|VIDEO|INPUT|SELECT|TEXTAREA|BUTTON)$/i.test(nd.tagName))) best = Math.min(best, nd.getBoundingClientRect().left);
+    }
+    return best;
+  };
+  const centered = (el) => { const cs = getComputedStyle(el); return /center|right|end/.test(cs.textAlign) || (/flex|grid/.test(cs.display) && /center|end|right|space-around|space-evenly/.test(cs.justifyContent)); };
+  const seenPair = new Set();
+  for (const P of document.querySelectorAll('body, body *')) {
+    if (!vis(P) || P.closest('[data-rank-ignore]') || /^(UL|OL|LI|BLOCKQUOTE|PRE|TABLE|TBODY|THEAD|TR|SVG)$/i.test(P.tagName)) continue;
+    const pw = P.getBoundingClientRect().width;
+    const kids = [...P.children].filter((c) => vis(c) && !/^(SCRIPT|STYLE|BR|HR)$/i.test(c.tagName) && getComputedStyle(c).position !== 'absolute' && getComputedStyle(c).position !== 'fixed' && c.getBoundingClientRect().width >= 0.5 * pw);
+    for (let i = 1; i < kids.length; i++) {
+      const a = kids[i - 1], b = kids[i], ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+      if (rb.top < ra.bottom - 1) continue;                                   // 세로로 쌓인 것만
+      if (framed(a) || framed(b) || centered(a) || centered(b)) continue;
+      if (/^(UL|OL|BLOCKQUOTE|PRE)$/i.test(a.tagName) || /^(UL|OL|BLOCKQUOTE|PRE)$/i.test(b.tagName)) continue;
+      // **덩어리끼리만** 본다 — 메뉴 띠 · 표 · 카드 묶음처럼 자식이 둘 이상인 영역. 첫 판은 묶음 제목(h2)과 그 아래 줄,
+      // 같은 목록의 줄끼리(앞에 아이콘이 있는 줄)를 걸어 control_tower 시안 33장에서 113건을 냈다 — 대부분 의도한 들여쓰기다
+      const region = (e) => !/^(H[1-6]|P|LABEL|SPAN|A|BUTTON)$/i.test(e.tagName) && [...e.children].filter(vis).length >= 2 && e.getBoundingClientRect().height >= 24;
+      const sig = (e) => e.tagName + '.' + (typeof e.className === 'string' ? e.className.trim().split(/\s+/)[0] : '');
+      if (!region(a) || !region(b) || sig(a) === sig(b)) continue;
+      // 양 끝까지 **펼쳐 놓은 줄**(상태 줄 · 탭 막대 · 이름 + 오른쪽 버튼 머리)은 왼쪽 시작이 뜻이 없다 — 두 번째 판의 남은 오탐 대부분
+      const spread = (e) => {
+        const r = e.getBoundingClientRect(), cs = getComputedStyle(e), right = r.right - parseFloat(cs.paddingRight) - parseFloat(cs.borderRightWidth);
+        const ks = [...e.children].filter(vis).map((c) => c.getBoundingClientRect());
+        return ks.some((k) => ks.some((o) => o !== k && o.top < k.bottom && k.top < o.bottom && Math.abs(o.left - k.left) > 4)) && Math.max(...ks.map((k) => k.right)) >= right - 12;
+      };
+      if (spread(a) || spread(b)) continue;
+      const la = inkLeft(a), lb = inkLeft(b);
+      if (!isFinite(la) || !isFinite(lb)) continue;
+      const d = Math.round(Math.abs(la - lb));
+      if (d >= 6 && d <= 40) {
+        const k = label(a) + label(b); if (seenPair.has(k)) continue; seenPair.add(k);
+        out.push({ kind: 'frame', what: `왼쪽 시작선이 ${d}px 어긋남`, at: label(a), by: label(b) });
+      }
+    }
+  }
+  return out.slice(0, 12);
+};
+
+// ─── --stress 곤란한 내용 — 글자를 바꿔 넣는다 (승인 `#65 C`) ───────────────────
+// 바꾸는 것은 **데이터처럼 보이는 글자**뿐이다 — 고정 문구(메뉴·버튼 문구)를 늘리면 소음이 된다.
+//   금액·개수: 날짜·시각이 아닌 숫자 덩어리 → 1,234,567,890 (쉼표가 있거나 4자리 이상) / 12,345 (짧은 수)
+//   이름: 표 칸·목록 항목·정의 안의 2~6자 한글 한 덩어리 → 그 뒤에 「앤드파트너스글로벌주식회사」 를 붙인다
+//         (버튼·링크·탭·메뉴·표 머리의 문구는 고정 문구다 — 첫 판이 「복사」 버튼을 늘렸다)
+const STRESS_SUBST = () => {
+  const LONG = '앤드파트너스글로벌주식회사';
+  let n = 0;
+  const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  const nodes = []; for (let nd = walk.nextNode(); nd; nd = walk.nextNode()) nodes.push(nd);
+  for (const nd of nodes) {
+    const el = nd.parentElement; const t = nd.textContent;
+    if (!el || !t.trim() || el.closest('script,style,noscript,[data-stress-ignore],[aria-hidden="true"]')) continue;
+    // 날짜·시각이 섞인 글자는 통째로 둔다 (「12. 12 (금)」 의 둘째 12 가 금액으로 바뀌던 첫 판)
+    const datey = /\d+\.\s*\d+|\(\s*[월화수목금토일]\s*\)|\d{1,2}:\d{2}|\d{4}[-./]\d/.test(t);
+    let v = datey ? t : t.replace(/(^|[^\d.:/\-])(\d{1,3}(?:,\d{3})+|\d{4,}|\d{1,3})(?![\d.:/\-]|\s*[년월일시분초]|\s*(?:am|pm)\b)/gi, (m, pre, num) => pre + (num.includes(',') || num.length >= 4 ? '1,234,567,890' : '12,345'));
+    if (v === t && /^\s*[가-힣]{2,6}\s*$/.test(t) && el.closest('td,li,dd,[role="cell"],[role="gridcell"],[role="listitem"]')
+        && !el.closest('button,[role="button"],a,label,th,nav,summary,option,[role="tab"],[role="menuitem"]')) v = t.replace(/[가-힣]+/, (w) => w + LONG);
+    if (v !== t) { nd.textContent = v; n++; }
+  }
+  return n;
+};
+
 // ─── 상태 대비 — hover·focus-visible 을 직접 눌러서 잰다 ────────────────────
 const STATE_AUDIT = () => {
   const srgb = (c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
@@ -738,6 +840,8 @@ const empties = [];      // 렌더가 비어 있던 (파일, 테마)
 let measuredCount = 0;   // 실제로 잰 텍스트 요소 수
 const ranks = [];        // IA6 — 파일마다 한 줄
 const shots = [];        // --shots 로 남긴 스크린숏
+const frames = [];       // ㉥ 뼈대 — ⚠️ (exit 에 넣지 않는다)
+let stressed = 0;        // --stress 로 바꿔 넣은 글자 수
 
 try {
   for (const { url, rel } of targetsList) {
@@ -772,6 +876,7 @@ try {
       for (const f of await page.evaluate(NONTEXT_AUDIT)) results.push({ ...f, file: rel, scheme });
       if (scheme === 'light') for (const f of await page.evaluate(LAYOUT_AUDIT)) results.push({ ...f, file: rel, scheme, width: 1280 });
       if (scheme === 'light') ranks.push({ file: rel, ...(await page.evaluate(RANK_AUDIT)) });
+      if (scheme === 'light') for (const f of await page.evaluate(FRAME_AUDIT)) frames.push({ ...f, file: rel });
 
       // ㉡ 상태 대비 — 인터랙티브 요소를 직접 누른다.
       const handles = await page.$$('a, button, [role="button"], summary, input, select, textarea, [tabindex]');
@@ -829,6 +934,17 @@ try {
         await page.screenshot({ path: join(shotsDir, nm), fullPage: true });
         shots.push(join(shotsDir, nm));
       }
+      if (stress) {
+        const n = await page.evaluate(STRESS_SUBST);
+        stressed += n;
+        if (n) {
+          await page.waitForTimeout(50);
+          const so = await page.evaluate(OVERFLOW_AUDIT);
+          if (so.scrolls) results.push({ kind: 'overflow', stress: true, file: rel, width, ...so });
+          for (const f of await page.evaluate(LAYOUT_AUDIT)) results.push({ ...f, stress: true, file: rel, scheme: 'light', width });
+          if (shotsDir) { const nm = `${rel.split(/[\\/]/).pop().replace(/[^\w가-힣.-]+/g, '_').replace(/^[._]+/, '').slice(-80) || 'page'}@${width}-stress.png`; await page.screenshot({ path: join(shotsDir, nm), fullPage: true }); shots.push(join(shotsDir, nm)); }
+        }
+      }
       await ctx.close();
     }
   }
@@ -846,7 +962,7 @@ const uniq = [];
 const seen = new Map();
 for (const r of results) {
   // 테마를 뺀 키로 먼저 묶는다 — 같은 고장이 두 테마에서 같은 숫자면 한 건이다.
-  const base = `${r.kind}|${r.file}|${r.state ?? ''}|${r.what ?? ''}|${r.width ?? ''}|${r.at ?? ''}|${r.ratio ?? ''}|${r.fg ?? ''}|${r.bg ?? ''}`;
+  const base = `${r.kind}|${r.stress ? 'S' : ''}|${r.file}|${r.state ?? ''}|${r.what ?? ''}|${r.width ?? ''}|${r.at ?? ''}|${r.ratio ?? ''}|${r.fg ?? ''}|${r.bg ?? ''}`;
   const prev = seen.get(base);
   // 같은 테마 안의 같은 줄은 **반복 요소**(표의 행마다 같은 체크 원)다 — 테마 무반응이 아니다
   if (prev && prev.scheme === r.scheme) { prev.count = (prev.count ?? 1) + (r.count ?? 1); continue; }
@@ -867,7 +983,7 @@ if (asJson) {
     reason: nothingMeasured ? 'empty-render' : undefined,
     via: found.from, files: targetsList.length, inject: injectName,
     textElementsMeasured: measuredCount,
-    widths: widthsInfo, ranks, shots,
+    widths: widthsInfo, ranks, shots, frames, stress: stress ? { replaced: stressed } : undefined,
     empties, findings: uniq,
   }, null, 2));
   process.exit(uniq.length ? 1 : (nothingMeasured && process.env.DESIGN_REQUIRE_BROWSER === '1' ? 1 : 0));
@@ -906,6 +1022,14 @@ for (const k of ranks) {
     console.log(`\n·  [IA6 진입점] 미측정 — ${k.file} 에 data-rank="1" 이 없다 (화면 문서 §4 의 1순위에 단다)`);
   }
 }
+// ㉥ 뼈대는 ⚠️ — exit 에 넣지 않는다. 일부러 그렇게 둔 것이면 화면 문서나 시안 머리에 이유를 적는다
+for (const f of frames) {
+  console.log(`\n⚠️  [뼈대] ${f.what}`);
+  console.log(`     ${f.file} — ${f.at}`);
+  console.log(`     ← ${f.by}`);
+}
+if (frames.length) console.log('     → 늘 비는 칸은 빼거나 채우고, 시작선은 위아래 블록의 글자 시작을 맞춘다. 의도한 것이면 이유를 남긴다');
+if (stress) console.log(`\n·  [곤란한 내용] 글자 ${stressed}곳을 바꿔 넣고 폭 ${widths.join('·')}px 에서 다시 쟀다${stressed ? '' : ' — 바꿀 데이터가 없었다(금액·개수·표·목록 속 이름)'}`);
 if (shots.length) {
   console.log(`\n📷 스크린숏 ${shots.length}장 — ${shotsDir}`);
   console.log('   **Read 로 한 장씩 연다.** 기계가 못 보는 것(도형 어긋남 · 아이콘 중심 · 이미지가 얼굴을 가림)은 눈이 본다');
@@ -921,7 +1045,7 @@ for (const r of uniq) {
     console.log(`     ${r.fg} on ${r.bg}  ·  ${r.size} / ${r.weight}`);
     console.log('     → 토큰 각각은 합격일 수 있다. 이 **쌍**이 미달이다');
   } else if (r.kind === 'layout') {
-    console.log(`\n❌ [배치] ${r.what}  ${r.width ?? ''}px`);
+    console.log(`\n❌ [배치${r.stress ? ' · 곤란한 내용' : ''}] ${r.what}  ${r.width ?? ''}px`);
     console.log(`     ${r.file} — ${r.at}`);
     console.log(`     ← ${r.by}`);
     console.log('     → 기본이다. 글자는 가려지거나 잘리거나 겹치면 안 된다');
@@ -935,7 +1059,7 @@ for (const r of uniq) {
     console.log(`     ${r.file} — ${r.at}`);
     console.log(`     ${r.fg} on ${r.bg}`);
   } else {
-    console.log(`\n❌ [넘침] ${r.width}px 에서 가로 스크롤 — 문서 ${r.docWidth}px / 뷰포트 ${r.viewport}px`);
+    console.log(`\n❌ [넘침${r.stress ? ' · 곤란한 내용' : ''}] ${r.width}px 에서 가로 스크롤 — 문서 ${r.docWidth}px / 뷰포트 ${r.viewport}px`);
     console.log(`     ${r.file}`);
     if (r.elements.length) console.log(`     ${r.elements.join(' · ')}`);
   }
