@@ -124,7 +124,7 @@ function readIgnores(text) {
   // 이유는 줄 끝 · `*/` · `-->` 중 먼저 오는 것까지다.
   // 초판은 문자 클래스에서 `*` 를 빼서 **강조 표시가 있는 이유가 중간에 잘렸다**
   // (실측: "이 문서는 안티패턴을" 에서 끊겼다 — `**인용한다.**` 의 별표 때문).
-  const RE = /slop-scan\s*:\s*ignore\s+([A-Z]{1,2}\d+)\s*(?:—|--|-)\s*(\S[^\n]*?)\s*(?:\*\/|-->|$)/gm;
+  const RE = /slop-scan\s*:\s*ignore\s+([A-Z]{1,2}\d+[a-z]?)\s*(?:—|--|-)\s*(\S[^\n]*?)\s*(?:\*\/|-->|$)/gm;
   for (const m of text.matchAll(RE)) m2.set(m[1], m[2].trim());
   return m2;
 }
@@ -220,7 +220,7 @@ function collect(root) {
     literals: [], files: 0,
     // 2026-10-11 추가 — 글로벌 분포로 세는 두 채널(리딩·크기)과,
     // 파일 단위로만 판정 가능한 것들(모션 대응·테마 반전·히어로 정형)의 결과.
-    lineHeights: [], fontSizes: [], weights: [], perFile: [], exempt: [],
+    lineHeights: [], fontSizes: [], weights: [], perFile: [], exempt: [], declared: [], firedAt: new Set(),
   };
   // 디렉토리면 순회, 단일 파일이면 그 파일만 — 토큰 정본(globals.css / theme.ts) 직접 검사용
   const targets = statSync(root).isDirectory() ? walk(root) : [root];
@@ -245,10 +245,12 @@ function collect(root) {
 
     // 면제 선언은 **벗기기 전** 본문에서 읽는다 — 주석에 사는 사람의 말이다 (D-20).
     const fileIgnores = readIgnores(text);
+    if (fileIgnores.size) acc.declared.push({ at: rel, codes: [...fileIgnores.keys()] });
 
     scanText.split(/\r?\n/).forEach((line, i) => {
       for (const [re, code, label] of LITERAL) {
         if (!re.test(line)) continue;
+        acc.firedAt.add(`${rel}|${code}`);
         // ★ 면제는 리터럴 검출에도 적용된다 (2026-10-11 수정).
         // 초판은 `collectPerFile` 안에서만 면제를 봤다 — 즉 검출기 23종 중 10종만
         // 면제가 들었고, `D-21` 이 약속한 기전이 나머지 13종에서는 **없었다.**
@@ -323,6 +325,7 @@ function collectPerFile(acc, text, rel, ext) {
   // 그러면 레지스트리가 아니라 주석이 기준이 된다.
   const ignored = readIgnores(text);
   const add = (code, msg, detail, note) => {
+    acc.firedAt.add(`${rel}|${code}`);   // 면제돼도 「났다」 — 고아 면제 판정용 (#62 B)
     if (ignored.has(code)) {
       // 면제도 접는다 — 같은 파일의 같은 코드를 세 줄로 보고하면 목록이 읽히지 않는다.
       if (!acc.exempt.some((e) => e.code === code && e.at === rel)) {
@@ -897,16 +900,25 @@ const literals = acc.literals
   .map((l) => ({ ...l, severity: applyCap(l.code, WEIGHTS[l.code] ? WEIGHTS[l.code][mi] : 'block') }))
   .filter((l) => l.severity);
 const all = [...literals, ...measured];
+// 분포로 재는 코드(파일이 아니라 전체에서 세는 것)도 그 파일 이름으로 나왔으면 났다고 친다
+for (const f of measured) if (f.at) acc.firedAt.add(`${f.at.split(':')[0]}|${f.code}`);
+const orphans = acc.declared.flatMap((d) => d.codes.filter((c) => !acc.firedAt.has(`${d.at}|${c}`)).map((c) => ({ code: c, at: d.at })));
 
 const budget = wantBudget ? budgetReport(acc) : null;
 
 if (asJson) {
-  console.log(JSON.stringify({ root, mode, filesScanned: acc.files, findings: all, exempt: acc.exempt, budget }, null, 2));
+  console.log(JSON.stringify({ root, mode, filesScanned: acc.files, findings: all, exempt: acc.exempt, orphans, budget }, null, 2));
 } else {
   console.log(`[slop-scan] ${acc.files}개 파일 스캔 — ${root}  (모드: ${mode})`);
   console.log(`  색상 ${new Set(acc.colors).size}종 / 반경 ${new Set(acc.radii).size}종 / 그림자 ${new Set(acc.shadows).size}종 / 듀레이션 ${new Set(acc.durations).size}종 / 폰트 ${new Set(acc.fonts).size}종`);
   // 면제는 **보인다.** 조용히 넘어가면 면제가 쌓이는 것을 아무도 세지 않고,
   // 그때 기준은 레지스트리가 아니라 주석이 된다.
+  // ★ 고아 면제 (승인 #62 B, 2026-11-03) — 선언했는데 그 파일에서 그 코드가 한 번도 나지 않았다.
+  // 0.4.8 이 M4 를 M4/M4s 로 쪼개자 `ignore M4` 8건이 아무 말 없이 효력을 잃었다(W45 라운드). 규칙이 바뀌면 면제도 옮겨야 한다.
+  if (orphans.length) {
+    console.log(`  고아 면제 ${orphans.length}건 — 선언했는데 이 파일에서 그 코드가 나지 않았다 (규칙이 바뀌었으면 면제를 옮긴다):`);
+    for (const o of orphans) console.log(`    ${o.code}  ${o.at}`);
+  }
   if (acc.exempt.length) {
     console.log(`  면제 ${acc.exempt.length}건 (이유 있음):`);
     for (const e of acc.exempt) console.log(`    ${e.code}  ${e.at} — ${e.why}`);

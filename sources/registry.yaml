@@ -55,7 +55,7 @@ sources:
     kind: system            # 모델이 읽는 디자인 스킬·레시피 레포 — 결정과 그 근거(실측)가 문서로 있다
     auth: none
     round: weekly
-    takes: [L5, L7, L8]     # 모션 어휘·대역, 이미지·연출 아이디어, 트레이드오프
+    takes: [L1, L2, L5, L6, L7, L8]   # + 여백·글자·구조 (승인 #61 C, 2026-11-03) — verified 는 주지 않는다: 보강 증거. 우리가 직접 재는 소스가 같은 것을 보이면 그때 승격
     drops: [L3]             # 색 값은 그 스킬의 취향이다
     watch:                  # 라운드가 변경을 본다 (GitHub API — 최근 커밋·릴리스)
       - Leonxlnx/taste-skill            # references/motion.md — Awwwards SOTD 99개 실측

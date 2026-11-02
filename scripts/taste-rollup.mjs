@@ -123,7 +123,7 @@ for (const j of J) {
 // 꼬리표는 **괄호 안의 조각 단위**로 뗀다. 초판은 괄호 전체가 한 꼬리표일 때만
 // 떼어서 `(tool · 3수준)` 을 못 봤고, 그 결과 같은 축을 둘로 셌다 —
 // 여백 배율·리스트 밀도·타이포 스케일·제목·본문 대비 네 쌍이 중복 계수됐다.
-const TAG = /^(?:범위\s*이동|범위\s*확대|순서\s*뒤집음|구간\s*좁힘|양수\s*쪽|대비\s*강화|규정\s*시험|중앙|끝값\s*교차|대면적\s*고정|밝은\s*테마.*|어두운\s*테마.*|\d수준|consumer|tool|marketing|graphic)$/;
+const TAG = /^(?:(?:밝은|어두운)\s*포스터|범위\s*이동|범위\s*확대|순서\s*뒤집음|구간\s*좁힘|양수\s*쪽|대비\s*강화|규정\s*시험|중앙|끝값\s*교차|대면적\s*고정|밝은\s*테마.*|어두운\s*테마.*|\d수준|consumer|tool|marketing|graphic)$/;
 // 이름만 다르고 같은 것을 묻는 축 — 정규식으로는 묶이지 않는다.
 const ALIAS = { '제목·본문 크기 대비': '제목·본문 대비', '타이포 스케일 비율': '타이포 스케일' };
 const canon = (axis) => {
@@ -201,7 +201,11 @@ for (const { mode, axis, rows: allRows } of byAxis.values()) {
   const flips = rows.filter((r) => r.retestOf);
   // 실효 테마 — 기판이 고정했으면(forcedTheme) 그것이 자극의 테마다.
   // 페이지 테마(theme)는 자극이 아니라 주변 맥락이다(4회차 force:'light' 가 그 구분을 만들었다).
-  const themes = [...new Set(rows.map((r) => r.forcedTheme || r.theme).filter(Boolean))];
+  // ★ 승인 #43 A (2026-11-03) — 포스터처럼 **자기 바탕색을 가진 그림**은 화면 테마가 아니라 그 그림의 밝기를 적는다.
+  // 3회차·5회차 포스터 문항은 바탕이 밝은 회색(#eceeef)으로 고정이었는데, 판정 때 화면이 어두워서 「어두운 테마에서만 쟀다」 로 적혔다.
+  // 6회차는 같은 축을 어두운 포스터로 물었다(force: dark). 둘을 합치면 밝은·어두운 양쪽을 잰 것이다.
+  const ownGround = (r) => (r.mode === 'graphic' && ((r.round === 'r3' && /^[gh]\d+$/.test(r.id)) || (r.round === 'r5' && /^P1[0-3]$/.test(r.id)))) ? 'light' : null;
+  const themes = [...new Set(rows.map((r) => r.forcedTheme || ownGround(r) || r.theme).filter(Boolean))];
 
   // 일관성: flip 재출제가 있고, 그 쌍이 같은 변형을 가리키며, 위치가 서로 달랐는가.
   // pick 은 위치가 아니라 변형 키라서 이 판정이 성립한다.
